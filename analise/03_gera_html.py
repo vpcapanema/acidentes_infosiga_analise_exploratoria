@@ -8,9 +8,11 @@ Páginas:
   docs/analise_subtrechos.html    (dashboard 2 — subtrechos)
   docs/GUIA_ACESSO.html           (navegação)
 """
+# pylint: disable=too-many-lines
 from __future__ import annotations
 
 import json
+import textwrap
 from pathlib import Path
 
 import pandas as pd
@@ -63,10 +65,113 @@ COLORS = {
     "muted": "#6b7280",
     "seq": ["#0e4d92", "#d52b1e", "#f7b500", "#2e8b57", "#7c3aed", "#0ea5e9", "#ea580c", "#065f46"],
 }
+
+PT_LABEL_MAP = {
+    "NAO DISPONIVEL": "NÃO DISPONÍVEL",
+    "COLISAO": "COLISÃO",
+    "TERCA-FEIRA": "TERÇA-FEIRA",
+    "SABADO": "SÁBADO",
+    "MANHA": "MANHÃ",
+    "ONIBUS": "ÔNIBUS",
+    "CAMINHAO": "CAMINHÃO",
+    "AUTOMOVEL": "AUTOMÓVEL",
+    "CONCESSIONARIA": "CONCESSIONÁRIA",
+    "RIBEIRAO PRETO": "RIBEIRÃO PRETO",
+    "SAO JOSE DO RIO PRETO": "SÃO JOSÉ DO RIO PRETO",
+    "SAO JOSE DOS CAMPOS": "SÃO JOSÉ DOS CAMPOS",
+    "SAO PAULO": "SÃO PAULO",
+    "SAO VICENTE": "SÃO VICENTE",
+    "SAO BERNARDO DO CAMPO": "SÃO BERNARDO DO CAMPO",
+    "SANTO ANDRE": "SANTO ANDRÉ",
+    "JUNDIAI": "JUNDIAÍ",
+    "TAUBATE": "TAUBATÉ",
+    "ARACATUBA": "ARAÇATUBA",
+    "MARILIA": "MARÍLIA",
+    "INDICE LETALIDADE": "Índice de letalidade",
+    "OBITOS POR KM": "Óbitos por km",
+    "SINISTROS POR KM": "Sinistros por km",
+}
+
+
+def pt_label(value):
+    if not isinstance(value, str):
+        return value
+    text = " ".join(value.replace("_", " ").split())
+    if not text:
+        return text
+    mapped = PT_LABEL_MAP.get(text.upper())
+    if mapped:
+        return mapped
+    for old, new in [
+        ("NAO", "NÃO"),
+        ("SAO", "SÃO"),
+        ("JOSE", "JOSÉ"),
+        ("JOAO", "JOÃO"),
+        ("RIBEIRAO", "RIBEIRÃO"),
+        ("CONCESSIONARIA", "CONCESSIONÁRIA"),
+        ("AUTOMOVEL", "AUTOMÓVEL"),
+        ("ONIBUS", "ÔNIBUS"),
+        ("CAMINHAO", "CAMINHÃO"),
+        ("COLISAO", "COLISÃO"),
+        ("SABADO", "SÁBADO"),
+        ("TERCA-FEIRA", "TERÇA-FEIRA"),
+        ("MANHA", "MANHÃ"),
+        ("ARACATUBA", "ARAÇATUBA"),
+        ("MARILIA", "MARÍLIA"),
+        ("JUNDIAI", "JUNDIAÍ"),
+        ("TAUBATE", "TAUBATÉ"),
+        ("SANTO ANDRE", "SANTO ANDRÉ"),
+    ]:
+        text = text.replace(old, new).replace(old.title(), new.title())
+    return text
+
+
+def wrap_title(text, width=34):
+    if not isinstance(text, str):
+        return text
+    clean = " ".join(text.replace("<br>", " ").split())
+    if len(clean) <= width:
+        return clean
+    return "<br>".join(textwrap.wrap(clean, width=width, break_long_words=False, break_on_hyphens=False))
+
+
+def _normalize_seq(values):
+    if values is None:
+        return values
+    try:
+        seq = list(values)
+    except TypeError:
+        return values
+    if not any(isinstance(v, str) for v in seq):
+        return values
+    return [pt_label(v) if isinstance(v, str) else v for v in seq]
+
+
+def apply_pt_formatting(fig):
+    title_text = getattr(getattr(fig.layout, "title", None), "text", None)
+    if title_text:
+        fig.update_layout(title=dict(text=f"<b>{wrap_title(pt_label(title_text))}</b>", x=0.5, xanchor="center"))
+    if getattr(fig.layout.xaxis.title, "text", None):
+        fig.update_xaxes(title_text=pt_label(fig.layout.xaxis.title.text))
+    if getattr(fig.layout.yaxis.title, "text", None):
+        fig.update_yaxes(title_text=pt_label(fig.layout.yaxis.title.text))
+    for tr in fig.data:
+        if hasattr(tr, "name") and isinstance(tr.name, str):
+            tr.name = pt_label(tr.name)
+        if hasattr(tr, "labels"):
+            tr.labels = _normalize_seq(tr.labels)
+        if hasattr(tr, "x"):
+            tr.x = _normalize_seq(tr.x)
+        if hasattr(tr, "y"):
+            tr.y = _normalize_seq(tr.y)
+        if tr.type == "bar":
+            tr.cliponaxis = False
+
+
 LAYOUT = dict(
     font=dict(family="Inter, Segoe UI, sans-serif", size=12, color="#1f2937"),
-    margin=dict(l=90, r=40, t=80, b=120),
-    title=dict(font=dict(size=16, color=COLORS["primary"]), x=0.02, xanchor="left"),
+    margin=dict(l=90, r=40, t=95, b=120),
+    title=dict(font=dict(size=16, color=COLORS["primary"]), x=0.5, xanchor="center"),
     colorway=COLORS["seq"],
     plot_bgcolor="white",
     paper_bgcolor="white",
@@ -75,28 +180,28 @@ LAYOUT = dict(
     legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5, title_text=""),
 )
 
+
 def fig_html(fig, div_id):
     fig.update_layout(**LAYOUT)
+    apply_pt_formatting(fig)
     fig.update_xaxes(automargin=True)
     fig.update_yaxes(automargin=True)
     has_heatmap = False
     has_horizontal_bar = False
     has_pie = False
     for tr in fig.data:
-        if tr.type == "bar":
-            tr.cliponaxis = False
-            if getattr(tr, "orientation", None) == "h":
-                has_horizontal_bar = True
+        if tr.type == "bar" and getattr(tr, "orientation", None) == "h":
+            has_horizontal_bar = True
         if tr.type == "heatmap":
             has_heatmap = True
         if tr.type == "pie":
             has_pie = True
     if has_pie:
-        fig.update_layout(height=460, margin=dict(l=40, r=40, t=80, b=120))
+        fig.update_layout(height=460, margin=dict(l=40, r=40, t=95, b=120))
     if has_heatmap:
-        fig.update_layout(height=460, margin=dict(l=90, r=110, t=80, b=90))
+        fig.update_layout(height=460, margin=dict(l=90, r=110, t=95, b=90))
     if has_horizontal_bar:
-        fig.update_layout(height=520, margin=dict(l=140, r=60, t=80, b=110))
+        fig.update_layout(height=520, margin=dict(l=170, r=60, t=95, b=110))
     return pio.to_html(fig, include_plotlyjs=False, full_html=False, div_id=div_id,
                        config={"displaylogo": False, "responsive": True})
 
@@ -371,25 +476,33 @@ nav.top{background:#0b3a70;padding:10px 24px;display:flex;gap:12px;flex-wrap:wra
 nav.top a{color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;font-weight:500;font-size:.95em}
 nav.top a:hover{background:#d52b1e}
 nav.top i,section h2 i,.card h3 i{margin-right:6px}
-main{max-width:1400px;margin:0 auto;padding:28px}
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 0}
-.kpi{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);padding:18px 14px;border-radius:14px;border:1px solid #dbe3ee;box-shadow:0 4px 14px rgba(15,23,42,.06);min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
-.kpi .i{font-size:1.3rem;line-height:1;color:var(--azul);margin-bottom:8px}
-.kpi .t{font-size:.96rem;font-weight:700;color:#0f172a}
-.kpi .v{margin-top:10px;font-size:1.95em;font-weight:800;color:var(--azul);line-height:1.1}
-.kpi .l{margin-top:6px;color:var(--muted);font-size:.82em;letter-spacing:.1px}
+main{width:90%;max-width:none;margin:0 5%;padding:28px 0 36px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin:18px 0 0}
+.kpi{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);padding:20px 16px;border-radius:16px;border:1px solid #dbe3ee;box-shadow:0 6px 18px rgba(15,23,42,.06);min-height:158px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.kpi .i{font-size:1.45rem;line-height:1;color:var(--azul);margin-bottom:10px}
+.kpi .t{font-size:1rem;font-weight:700;color:#0f172a}
+.kpi .v{margin-top:12px;font-size:2.02em;font-weight:800;color:var(--azul);line-height:1.1}
+.kpi .l{margin-top:7px;color:var(--muted);font-size:.83em;letter-spacing:.1px}
 .kpi.alert .i,.kpi.alert .v{color:var(--vermelho)}
 .kpi.warn .i,.kpi.warn .v{color:#b88700}
 .kpi.ok .i,.kpi.ok .v{color:var(--verde)}
 section{background:white;margin:24px 0;padding:24px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
 section h2{color:var(--azul);margin-top:0;border-bottom:3px solid var(--vermelho);padding-bottom:8px;display:inline-block}
-.section-intro{margin:0 0 8px;color:var(--muted)}
-.stats-shell,.filter-shell,.analytics-shell{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);border:1px solid #dbe3ee}
+.section-intro{margin:2px 0 12px;color:var(--muted);max-width:980px}
+.stats-shell,.filter-shell,.analytics-shell{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);border:1px solid #dbe3ee;border-radius:18px;box-shadow:0 6px 20px rgba(15,23,42,.05)}
 section h3{color:var(--azul);margin-top:28px}
-.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:24px;margin-top:16px;align-items:start}
-.chart{background:#fafafa;padding:18px 18px 28px;border-radius:8px;border:1px solid #e5e7eb;overflow:visible;min-width:0;min-height:460px}
-.chart > div{width:100%!important;min-height:420px}
-.js-plotly-plot,.plot-container{width:100%!important}
+.dashboard-tabs{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 6px}
+.tab-btn{border:1px solid #cbd5e1;background:#fff;color:var(--azul);padding:10px 14px;border-radius:999px;font:inherit;font-weight:800;cursor:pointer;transition:.2s ease}
+.tab-btn:hover{border-color:var(--azul);transform:translateY(-1px)}
+.tab-btn.active{background:var(--azul);color:#fff;border-color:var(--azul);box-shadow:0 8px 18px rgba(14,77,146,.18)}
+.tab-panel{display:none}
+.tab-panel.active{display:block}
+.chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;margin-top:16px;align-items:start}
+.demografia-grid .chart{min-height:490px}
+.chart{background:#fafafa;padding:18px 18px 28px;border-radius:8px;border:1px solid #e5e7eb;overflow:hidden;min-width:0;min-height:460px}
+.chart > div{width:100%!important;min-height:420px;max-width:100%!important}
+.js-plotly-plot,.plot-container{width:100%!important;max-width:100%!important}
+.gtitle{font-weight:700!important}
 .card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
 .card{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:transform .2s,box-shadow .2s}
 .card:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,.1)}
@@ -406,7 +519,7 @@ table.tbl thead{background:var(--azul);color:white}
 table.tbl tr:nth-child(even){background:#f9fafb}
 footer{background:#0b3a70;color:#cbd5e1;padding:24px;text-align:center;margin-top:40px}
 footer a{color:#fff;text-decoration:none}
-#map,#mapSub{height:760px;border-radius:12px;border:1px solid #dbe3ee}
+#map,#mapSub{height:720px;border-radius:14px;border:1px solid #dbe3ee}
 .legend-map{background:white;padding:10px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.16);font-size:.85em;line-height:1.55;max-width:260px}
 .legend-map .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
 .layer-sidebar{background:rgba(255,255,255,.96);padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.18);min-width:240px;max-width:280px;font-size:.84em;line-height:1.45;border:1px solid #dbe3ee}
@@ -420,25 +533,26 @@ footer a{color:#fff;text-decoration:none}
 .sym-marker.point span{font-size:16px}
 .sym-marker.micro span{font-size:11px}
 .pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.8em;margin-right:4px}
-.geo-main{max-width:none;width:100%;padding:20px 24px 32px}
-.filter-shell{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);margin:20px 0;padding:20px 22px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee}
-.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end;margin-top:14px}
-.filters label{display:flex;flex-direction:column;gap:6px;font-weight:600;color:var(--azul);font-size:.92em}
-.filters select,.filters input,.filters button{border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font:inherit;background:white;color:var(--ink)}
-.filters button{background:var(--azul);color:white;font-weight:600;cursor:pointer}
+.geo-main{width:90%;max-width:none;margin:0 5%;padding:20px 0 32px}
+.filter-shell,.stats-shell,.analytics-shell{margin:20px 0;padding:22px 24px}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:16px;align-items:end;margin-top:14px}
+.filters label{display:flex;flex-direction:column;gap:7px;font-weight:600;color:var(--azul);font-size:.92em}
+.filters select,.filters input,.filters button{border:1px solid #cbd5e1;border-radius:10px;padding:11px 12px;font:inherit;background:white;color:var(--ink)}
+.filters input[type="range"]{padding:0}
+.filters button{background:var(--azul);color:white;font-weight:700;cursor:pointer;min-height:44px;align-self:end}
 .filters button:hover{background:#0b3a70}
-.checkline{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:8px}
+.checkline{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:10px}
 .checkline label{display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--ink)}
-.geo-board{display:grid;grid-template-columns:minmax(640px,1.35fr) minmax(420px,1fr);gap:18px;margin-top:18px;align-items:start;padding:18px;border-radius:18px;background:linear-gradient(180deg,#eef5ff 0%,#f8fbff 100%);box-shadow:0 8px 24px rgba(15,23,42,.08);border:1px solid #dbe3ee}
-.geo-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-content:start}
-.geo-panel{background:white;padding:16px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee;min-width:0}
+.geo-board{display:grid;grid-template-columns:minmax(700px,1.45fr) minmax(420px,1fr);gap:20px;margin-top:10px;align-items:start;padding:20px;border-radius:20px;background:linear-gradient(180deg,#eef5ff 0%,#f8fbff 100%);box-shadow:0 10px 28px rgba(15,23,42,.08);border:1px solid #dbe3ee}
+.geo-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:start}
+.geo-panel{background:white;padding:18px;border-radius:16px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee;min-width:0}
 .geo-panel.map-panel{position:sticky;top:76px}
-.geo-rail .geo-panel h2{font-size:1em;margin-bottom:8px}
-.plot-host{width:100%;min-height:260px}
-.plot-timeline{min-height:220px;margin-top:10px}
-.layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.layer-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.82em;font-weight:600}
-.map-tip{background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;margin-top:12px;color:var(--muted);font-size:.9em}
+.geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px}
+.plot-host{width:100%;min-height:280px}
+.plot-timeline{min-height:240px;margin-top:8px}
+.layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.layer-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.82em;font-weight:600}
+.map-tip{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:11px 13px;margin-top:14px;color:var(--muted);font-size:.9em}
 .leaflet-control-layers{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.18)!important;border-radius:10px!important}
 .leaflet-control-layers-expanded{padding:10px 12px;background:white}
 .leaflet-popup-content{line-height:1.45}
@@ -449,6 +563,7 @@ footer a{color:#fff;text-decoration:none}
   .chart-grid{grid-template-columns:1fr}
   .chart{min-height:400px}
   .chart > div{min-height:360px}
+  .filter-shell,.stats-shell,.analytics-shell{padding:16px}
   .geo-board{grid-template-columns:1fr;padding:12px}
   .geo-rail{grid-template-columns:1fr}
   .geo-panel.map-panel{position:static}
@@ -580,9 +695,99 @@ portal_body = f"""
 (DOCS / "index.html").write_text(html_page("Infosiga SP — Portal", portal_body), encoding="utf-8")
 
 # ============ DASHBOARD ============
-def section(titulo, chaves):
+def section(titulo, chaves, extra_class=""):
     charts = "\n".join(f'<div class="chart">{fig_html(FIGS[k], f"chart_{k}")}</div>' for k in chaves)
-    return f"""<section><h2>{titulo}</h2><div class="chart-grid">{charts}</div></section>"""
+    classes = f"chart-grid {extra_class}".strip()
+    return f"""<section><h2>{titulo}</h2><div class="{classes}">{charts}</div></section>"""
+
+
+def dashboard_tabs():
+    tabs = [
+        ("tab_visao", '<i class="fa-solid fa-thumbtack"></i> Visão Geral', ["sinistros_ano", "obitos_ano", "vitimas_gravidade_ano", "modal", "tipos_sinistro", "tipos_gravidade"], ""),
+        ("tab_demografia", '<i class="fa-solid fa-people-group"></i> Análise de Vítimas & Demografia', ["gravidade_lesao", "sexo", "faixa_etaria", "tipo_vitima", "obitos_trend", "obitos_tipo"], "demografia-grid"),
+        ("tab_temporal", '<i class="fa-solid fa-clock"></i> Séries Temporais & Sazonalidade', ["ts_mensal", "heat_sazonalidade", "dia_semana", "fatais_dia_semana", "turno", "hora"], ""),
+        ("tab_geo", '<i class="fa-solid fa-map-location-dot"></i> Análise Geográfica (agregada)', ["regiao", "regiao_obitos", "municipios_obitos", "tipo_via", "administracao"], ""),
+        ("tab_padroes", '<i class="fa-solid fa-puzzle-piece"></i> Padrões & Correlações', ["heat_dia_turno", "letalidade_hora", "letalidade_ano", "tempo_obito"], ""),
+    ]
+    buttons = "\n".join(
+        f'<button class="tab-btn{" active" if i == 0 else ""}" data-tab="{tab_id}">{label}</button>'
+        for i, (tab_id, label, _, _) in enumerate(tabs)
+    )
+
+    panel_blocks = []
+    for i, (tab_id, label, keys, extra_class) in enumerate(tabs):
+        panel_content = section(label, keys, extra_class)
+        if i == 0:
+            panel_blocks.append(f'<div class="tab-panel active" id="{tab_id}" data-loaded="true">{panel_content}</div>')
+        else:
+            panel_blocks.append(
+                f'<div class="tab-panel" id="{tab_id}" data-loaded="false"><div class="small-note">Abra esta aba para carregar os gráficos.</div></div>'
+                f'<template id="tpl_{tab_id}">{panel_content}</template>'
+            )
+    panels = "\n".join(panel_blocks)
+
+    script = """
+<script>
+(function () {
+  const buttons = Array.from(document.querySelectorAll('.tab-btn'));
+  const panels = Array.from(document.querySelectorAll('.tab-panel'));
+
+  function executeScripts(container) {
+    container.querySelectorAll('script').forEach((oldScript) => {
+      const newScript = document.createElement('script');
+      Array.from(oldScript.attributes).forEach((attr) => newScript.setAttribute(attr.name, attr.value));
+      newScript.text = oldScript.textContent;
+      oldScript.parentNode.replaceChild(newScript, oldScript);
+    });
+  }
+
+  function ensureLoaded(panel) {
+    if (!panel || panel.dataset.loaded === 'true') return;
+    const template = document.getElementById(`tpl_${panel.id}`);
+    if (!template) return;
+    panel.innerHTML = template.innerHTML;
+    panel.dataset.loaded = 'true';
+    executeScripts(panel);
+  }
+
+  function resizePanel(panel) {
+    if (!panel || !window.Plotly) return;
+    panel.querySelectorAll('.js-plotly-plot').forEach((plot) => {
+      try { Plotly.Plots.resize(plot); } catch (e) {}
+    });
+  }
+
+  function activateTab(targetId) {
+    buttons.forEach((b) => b.classList.toggle('active', b.dataset.tab === targetId));
+    panels.forEach((panel) => {
+      const isActive = panel.id === targetId;
+      panel.classList.toggle('active', isActive);
+      if (isActive) {
+        ensureLoaded(panel);
+        setTimeout(() => resizePanel(panel), 80);
+      }
+    });
+  }
+
+  buttons.forEach((btn) => {
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+  });
+
+  window.addEventListener('load', () => activateTab((document.querySelector('.tab-btn.active') || buttons[0]).dataset.tab));
+  window.addEventListener('resize', () => resizePanel(document.querySelector('.tab-panel.active')));
+})();
+</script>
+"""
+    return f"""
+<section>
+  <h2>Painéis Temáticos</h2>
+  <p class="section-intro">Cada tema do dashboard agora está separado em uma aba dedicada, com carregamento sob demanda para deixar a página mais rápida.</p>
+  <div class="dashboard-tabs">{buttons}</div>
+  {panels}
+</section>
+{script}
+"""
+
 
 dash_body = f"""
 <header class="hero">
@@ -591,11 +796,7 @@ dash_body = f"""
 </header>
 <main>
 {kpi_html}
-{section('<i class="fa-solid fa-thumbtack"></i> Visão Geral', ["sinistros_ano","obitos_ano","vitimas_gravidade_ano","modal","tipos_sinistro","tipos_gravidade"])}
-{section('<i class="fa-solid fa-people-group"></i> Análise de Vítimas & Demografia', ["gravidade_lesao","sexo","faixa_etaria","tipo_vitima","obitos_trend","obitos_tipo"])}
-{section('<i class="fa-solid fa-clock"></i> Séries Temporais & Sazonalidade', ["ts_mensal","heat_sazonalidade","dia_semana","fatais_dia_semana","turno","hora"])}
-{section('<i class="fa-solid fa-map-location-dot"></i> Análise Geográfica (agregada)', ["regiao","regiao_obitos","municipios_obitos","tipo_via","administracao"])}
-{section('<i class="fa-solid fa-puzzle-piece"></i> Padrões & Correlações', ["heat_dia_turno","letalidade_hora","letalidade_ano","tempo_obito"])}
+{dashboard_tabs()}
 </main>
 """
 (DOCS / "dashboard_principal.html").write_text(html_page("Dashboard Infosiga SP", dash_body), encoding="utf-8")
@@ -772,9 +973,15 @@ geo_body = f"""
   <p>Cruzamento Infosiga × Malha DER/SP · leitura por rodovia, tipo de evento e ano · com apoio da malha completa</p>
 </header>
 <main class="geo-main">
+<section class="stats-shell">
+  <h2>Estatística</h2>
+  <p class="section-intro">Resumo consolidado do recorte geográfico ativo, sempre alinhado aos filtros analíticos.</p>
+  <div id="geo-kpis" class="kpis"></div>
+</section>
+
 <section class="filter-shell">
-  <h2>Filtros e interação</h2>
-  <p>Selecione uma rodovia, altere o indicador e clique no mapa ou nos gráficos para sincronizar todo o painel.</p>
+  <h2>Filtros analíticos</h2>
+  <p class="section-intro">Selecione uma rodovia, altere o indicador e use os controles para sincronizar todo o painel.</p>
   <div class="filters">
     <label>Rodovia
       <select id="fltRoad">
@@ -816,56 +1023,59 @@ geo_body = f"""
     <button id="btnReset" type="button">Limpar seleção</button>
   </div>
   <div class="checkline">
-    <span id="topNLabel" class="small-note">Exibindo Top 8 · As camadas do mapa são controladas na barra lateral à esquerda do Leaflet.</span>
+    <span id="topNLabel" class="small-note">Exibindo Top 8 · O checkbox do grupo controla todas as camadas internas do Leaflet.</span>
   </div>
   <div class="layer-hint">
     <span class="layer-chip">Período analisado: {anos_range}</span>
-    <span class="layer-chip">Mapa e ranking: acumulado do período</span>
-    <span class="layer-chip">Linha do tempo: leitura anual</span>
-  </div>
-  <div id="geo-kpis" class="kpis"></div>
-  <div class="geo-panel" style="margin-top:14px">
-    <h2><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
-    <div id="timelineChart" class="plot-host plot-timeline"></div>
+    <span class="layer-chip">Mapa e gráficos 100% sincronizados</span>
+    <span class="layer-chip">Cores e símbolos por categoria</span>
   </div>
 </section>
 
-<div class="geo-board">
-  <section class="geo-panel map-panel">
-    <h2><i class="fa-solid fa-map-location-dot"></i> Mapa DER com camadas</h2>
-    <p id="map-caption">Painel integrado: o mapa Leaflet e os quatro gráficos compartilham o mesmo contêiner analítico. Use o controle do mapa para trocar o plano de fundo e ativar ou desativar camadas.</p>
-    <div id="map"></div>
-    <div class="layer-hint">
-      <span class="layer-chip">Trechos DER por criticidade</span>
-      <span class="layer-chip">Eventos por tipo</span>
-      <span class="layer-chip">Pontos fatais</span>
-      <span class="layer-chip">Mapa de calor</span>
+<section class="analytics-shell">
+  <h2>Painel analítico</h2>
+  <p id="map-caption" class="section-intro">Mapa e gráficos lado a lado, com resposta cruzada a todos os filtros do painel.</p>
+  <div class="geo-board">
+    <section class="geo-panel map-panel">
+      <h2><i class="fa-solid fa-map-location-dot"></i> Mapa DER com camadas</h2>
+      <div id="map"></div>
+      <div class="layer-hint">
+        <span class="layer-chip">Trechos DER por criticidade</span>
+        <span class="layer-chip">Eventos por tipo</span>
+        <span class="layer-chip">Pontos fatais</span>
+        <span class="layer-chip">Mapa de calor</span>
+      </div>
+      <div class="map-tip">Os grupos da barra lateral do mapa ligam ou desligam automaticamente todas as camadas internas.</div>
+    </section>
+
+    <div class="geo-rail">
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
+        <div id="timelineChart" class="plot-host plot-timeline"></div>
+      </section>
+
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
+        <div id="roadRankChart" class="plot-host"></div>
+      </section>
+
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
+        <div id="bubbleChart" class="plot-host"></div>
+      </section>
+
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
+        <div id="segmentChart" class="plot-host"></div>
+      </section>
+
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
+        <div id="compareChart" class="plot-host"></div>
+      </section>
     </div>
-    <div class="map-tip">No mesmo painel, o mapa fica à esquerda e os gráficos analíticos à direita, com resposta cruzada entre as seleções.</div>
-  </section>
-
-  <div class="geo-rail">
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
-      <div id="roadRankChart" class="plot-host"></div>
-    </section>
-
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
-      <div id="bubbleChart" class="plot-host"></div>
-    </section>
-
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
-      <div id="segmentChart" class="plot-host"></div>
-    </section>
-
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
-      <div id="compareChart" class="plot-host"></div>
-    </section>
   </div>
-</div>
+</section>
 </main>
 <script>
 const roadRowsAll = {road_rows_js};
@@ -939,12 +1149,18 @@ function severityClass(value, maxValue) {{
   return {{ label: 'Baixo', color: '#facc15' }};
 }}
 
-function typeColor(kind) {{
+function typeStyle(kind, family='sinistros') {{
   const k = String(kind || '').toUpperCase();
-  if (k.includes('ATROPEL')) return '#7c3aed';
-  if (k.includes('CHOQUE')) return '#ea580c';
-  if (k.includes('COLISAO')) return '#0e4d92';
-  return '#475569';
+  if (family === 'obitos') {{
+    if (k.includes('ATROPEL')) return {{ symbol: '▲', color: '#7c3aed', label: 'Atropelamento' }};
+    if (k.includes('CHOQUE')) return {{ symbol: '◆', color: '#ea580c', label: 'Choque' }};
+    if (k.includes('COLISAO')) return {{ symbol: '●', color: '#b91c1c', label: 'Colisão' }};
+    return {{ symbol: '■', color: '#7f1d1d', label: 'Outros' }};
+  }}
+  if (k.includes('ATROPEL')) return {{ symbol: '▲', color: '#6d28d9', label: 'Atropelamento' }};
+  if (k.includes('CHOQUE')) return {{ symbol: '◆', color: '#0891b2', label: 'Choque' }};
+  if (k.includes('COLISAO')) return {{ symbol: '●', color: '#0e4d92', label: 'Colisão' }};
+  return {{ symbol: '■', color: '#475569', label: 'Outros' }};
 }}
 
 function sameType(row) {{
@@ -990,24 +1206,30 @@ function fillRoadOptions() {{
   }});
 }}
 
+function kpiCard(icon, title, value, note='', cls='') {{
+  return `<div class="kpi ${{cls}}"><div class="i"><i class="${{icon}}"></i></div><div class="t">${{title}}</div><div class="v">${{value}}</div>${{note ? `<div class="l">${{note}}</div>` : ''}}</div>`;
+}}
+
 function updateKpis(rows, segs) {{
   const totalSin = rows.reduce((acc, r) => acc + Number(r.sinistros || 0), 0);
   const totalObi = rows.reduce((acc, r) => acc + Number(r.obitos || 0), 0);
   const mediaLet = rows.length ? rows.reduce((acc, r) => acc + Number(r.indice_letalidade || 0), 0) / rows.length : 0;
-  const trechoTxt = state.road === 'ALL' ? 'Trechos na malha' : 'Trechos da rodovia';
   const periodoTxt = state.year === 'ALL' ? '{anos_range}' : state.year;
   const tipoTxt = eventTypeNames[state.eventType] || 'Todos os eventos';
-  kpiBox.innerHTML = `
-    <div class="kpi ok"><div class="v">${{periodoTxt}}</div><div class="l">Recorte temporal</div></div>
-    <div class="kpi ok"><div class="v">${{tipoTxt}}</div><div class="l">Recorte temático</div></div>
-    <div class="kpi"><div class="v">${{fmt(rows.length)}}</div><div class="l">Rodovias exibidas</div></div>
-    <div class="kpi"><div class="v">${{fmt(totalSin)}}</div><div class="l">Sinistros</div></div>
-    <div class="kpi alert"><div class="v">${{fmt(totalObi)}}</div><div class="l">Óbitos</div></div>
-    <div class="kpi warn"><div class="v">${{fmt(mediaLet, 2)}}%</div><div class="l">Letalidade média</div></div>
-    <div class="kpi ok"><div class="v">${{fmt(segs.length)}}</div><div class="l">${{trechoTxt}}</div></div>`;
+  const roadTxt = state.road === 'ALL' ? 'Malha completa' : state.road;
+  kpiBox.innerHTML = [
+    kpiCard('fa-regular fa-calendar', 'Período', periodoTxt, state.year === 'ALL' ? 'Visão acumulada' : 'Ano filtrado', 'ok'),
+    kpiCard('fa-solid fa-filter', 'Tipo de evento', tipoTxt, 'Recorte analítico', 'ok'),
+    kpiCard('fa-solid fa-road', 'Rodovia foco', roadTxt, state.road === 'ALL' ? 'Sem seleção fixa' : 'Seleção ativa'),
+    kpiCard('fa-solid fa-network-wired', 'Rodovias no recorte', fmt(rows.length), 'Base do ranking'),
+    kpiCard('fa-solid fa-route', 'Subtrechos no recorte', fmt(segs.length), 'Malha filtrada'),
+    kpiCard('fa-solid fa-car-burst', 'Sinistros', fmt(totalSin), 'Eventos analisados'),
+    kpiCard('fa-solid fa-crosshairs', 'Óbitos', fmt(totalObi), 'Eventos fatais', 'alert'),
+    kpiCard('fa-solid fa-gauge-high', 'Letalidade média', `${{fmt(mediaLet, 2)}}%`, 'Índice médio', 'warn')
+  ].join('');
   mapCaption.textContent = state.road === 'ALL'
-    ? `Visão espacial da malha completa do DER/SP. Tema: ${{tipoTxt}}. Período: ${{periodoTxt}}. Cada trecho é colorido pela classe do indicador selecionado.`
-    : `Rodovia selecionada: ${{state.road}}. Tema: ${{tipoTxt}}. Período: ${{periodoTxt}}. Cada trecho da rodovia recebe a classe correspondente ao filtro atual.`;
+    ? `Painel integrado da malha completa do DER/SP. Indicador: ${{metricNames[state.metric]}}. Tema: ${{tipoTxt}}. Período: ${{periodoTxt}}.`
+    : `Painel integrado da rodovia ${{state.road}}. Indicador: ${{metricNames[state.metric]}}. Tema: ${{tipoTxt}}. Período: ${{periodoTxt}}.`;
 }}
 
 const mapa = L.map('map', {{ zoomControl: true }}).setView([-22.5, -48.5], 7);
@@ -1035,10 +1257,10 @@ const overlayGroups = {{
   obitosMicros: L.layerGroup().addTo(mapa)
 }};
 const legendHtmlMap = {{
-  obitosPoints: '<b>Legenda — Óbitos (pontos)</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#b91c1c;font-weight:800">◆</span> Choque<br><span style="color:#b91c1c;font-weight:800">▲</span> Atropelamento<br><span style="color:#b91c1c;font-weight:800">■</span> Outros',
-  obitosMicros: '<b>Legenda — Óbitos (micropontos)</b><br><span style="color:#b91c1c;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo',
-  sinistrosPoints: '<b>Legenda — Sinistros (pontos)</b><br><span style="color:#0b3a70;font-weight:800">●</span> Colisão<br><span style="color:#0b3a70;font-weight:800">◆</span> Choque<br><span style="color:#0b3a70;font-weight:800">▲</span> Atropelamento<br><span style="color:#0b3a70;font-weight:800">■</span> Outros',
-  sinistrosMicros: '<b>Legenda — Sinistros (micropontos)</b><br><span style="color:#0b3a70;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo',
+  obitosPoints: '<b>Legenda — Óbitos por categoria</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#ea580c;font-weight:800">◆</span> Choque<br><span style="color:#7c3aed;font-weight:800">▲</span> Atropelamento<br><span style="color:#7f1d1d;font-weight:800">■</span> Outros',
+  obitosMicros: '<b>Legenda — Óbitos por categoria</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#ea580c;font-weight:800">◆</span> Choque<br><span style="color:#7c3aed;font-weight:800">▲</span> Atropelamento<br><span style="color:#7f1d1d;font-weight:800">■</span> Outros',
+  sinistrosPoints: '<b>Legenda — Sinistros por categoria</b><br><span style="color:#0e4d92;font-weight:800">●</span> Colisão<br><span style="color:#0891b2;font-weight:800">◆</span> Choque<br><span style="color:#6d28d9;font-weight:800">▲</span> Atropelamento<br><span style="color:#475569;font-weight:800">■</span> Outros',
+  sinistrosMicros: '<b>Legenda — Sinistros por categoria</b><br><span style="color:#0e4d92;font-weight:800">●</span> Colisão<br><span style="color:#0891b2;font-weight:800">◆</span> Choque<br><span style="color:#6d28d9;font-weight:800">▲</span> Atropelamento<br><span style="color:#475569;font-weight:800">■</span> Outros',
   heatObitos: '<b>Legenda — Mapa de calor de óbitos</b><br><span class="sw" style="background:#fee2e2"></span> Baixo<br><span class="sw" style="background:#ef4444"></span> Médio<br><span class="sw" style="background:#7f1d1d"></span> Alto',
   heatSinistros: '<b>Legenda — Mapa de calor de sinistros</b><br><span class="sw" style="background:#dbeafe"></span> Baixo<br><span class="sw" style="background:#2563eb"></span> Médio<br><span class="sw" style="background:#0b3a70"></span> Alto',
   malhaSP: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
@@ -1103,46 +1325,58 @@ function setLayerVisible(group, visible) {{
   if (visible) {{ if (!mapa.hasLayer(group)) group.addTo(mapa); }}
   else if (mapa.hasLayer(group)) group.remove();
 }}
-function symbolForType(kind) {{
-  const k = String(kind || '').toUpperCase();
-  if (k.includes('ATROPEL')) return '▲';
-  if (k.includes('CHOQUE')) return '◆';
-  if (k.includes('COLISAO')) return '●';
-  return '■';
-}}
-function pointMarker(latlng, kind, color, micro=false) {{
+function pointMarker(latlng, kind, family='sinistros', micro=false) {{
+  const style = typeStyle(kind, family);
   return L.marker(latlng, {{
-    pane: micro ? (color === '#b91c1c' ? 'paneObMicro' : 'paneSinMicro') : (color === '#b91c1c' ? 'paneObPts' : 'paneSinPts'),
+    pane: micro ? (family === 'obitos' ? 'paneObMicro' : 'paneSinMicro') : (family === 'obitos' ? 'paneObPts' : 'paneSinPts'),
     icon: L.divIcon({{
       className: `sym-marker ${{micro ? 'micro' : 'point'}}`,
-      html: `<span style="color:${{color}}">${{symbolForType(kind)}}</span>`,
+      html: `<span style="color:${{style.color}}">${{style.symbol}}</span>`,
       iconSize: micro ? [12, 12] : [16, 16],
       iconAnchor: micro ? [6, 6] : [8, 8]
     }})
   }});
 }}
-function pointPopup(ft, title) {{
+function pointPopup(ft, title, family='sinistros') {{
+  const style = typeStyle(ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, family);
   return `<b>${{title}}</b><br>` +
     `Ano: ${{ft.properties.ano_sinistro || '-'}}<br>` +
     `Rodovia: ${{ft.properties.Rodovia || '-'}}<br>` +
     `Município: ${{ft.properties.municipio || '-'}}<br>` +
-    `Tipo: ${{ft.properties.tp_sinistro_primario || ft.properties.evento_tipo || '-'}}`;
+    `Categoria: <span style="color:${{style.color}};font-weight:700">${{style.label}}</span>`;
 }}
 function bindLayerPanel() {{
-  const fields = {{
-    grpObitos: 'showObitosGroup', lyObitosPoints: 'showObitosPoints', lyObitosMicros: 'showObitosMicros', lyObitosYear: 'obitosUseYear',
-    grpSinistros: 'showSinistrosGroup', lySinistrosPoints: 'showSinistrosPoints', lySinistrosMicros: 'showSinistrosMicros', lySinistrosYear: 'sinistrosUseYear',
-    grpHeat: 'showHeatGroup', lyHeatObitos: 'showHeatObitos', lyHeatSinistros: 'showHeatSinistros', lyHeatYear: 'heatUseYear',
-    grpMalha: 'showMalhaGroup', lyMalhaSP: 'showMalhaSP', lyMalhaSPA: 'showMalhaSPA', lyMalhaSPI: 'showMalhaSPI', lyMalhaSPM: 'showMalhaSPM'
-  }};
-  Object.entries(fields).forEach(([id, key]) => {{
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = !!state[key];
-    el.addEventListener('change', () => {{
-      state[key] = el.checked;
+  const groups = [
+    {{ master: 'grpObitos', groupKey: 'showObitosGroup', children: [['lyObitosPoints', 'showObitosPoints'], ['lyObitosMicros', 'showObitosMicros'], ['lyObitosYear', 'obitosUseYear']] }},
+    {{ master: 'grpSinistros', groupKey: 'showSinistrosGroup', children: [['lySinistrosPoints', 'showSinistrosPoints'], ['lySinistrosMicros', 'showSinistrosMicros'], ['lySinistrosYear', 'sinistrosUseYear']] }},
+    {{ master: 'grpHeat', groupKey: 'showHeatGroup', children: [['lyHeatObitos', 'showHeatObitos'], ['lyHeatSinistros', 'showHeatSinistros'], ['lyHeatYear', 'heatUseYear']] }},
+    {{ master: 'grpMalha', groupKey: 'showMalhaGroup', children: [['lyMalhaSP', 'showMalhaSP'], ['lyMalhaSPA', 'showMalhaSPA'], ['lyMalhaSPI', 'showMalhaSPI'], ['lyMalhaSPM', 'showMalhaSPM']] }}
+  ];
+  groups.forEach(cfg => {{
+    const master = document.getElementById(cfg.master);
+    const children = cfg.children.map(([id, key]) => ({{ el: document.getElementById(id), key }})).filter(item => item.el);
+    children.forEach(item => {{ item.el.checked = !!state[item.key]; }});
+    const syncMaster = () => {{
+      const checkedCount = children.filter(item => item.el.checked).length;
+      master.checked = checkedCount === children.length && checkedCount > 0;
+      master.indeterminate = checkedCount > 0 && checkedCount < children.length;
+      state[cfg.groupKey] = checkedCount > 0;
+    }};
+    master.addEventListener('change', () => {{
+      children.forEach(item => {{
+        item.el.checked = master.checked;
+        state[item.key] = master.checked;
+      }});
+      master.indeterminate = false;
+      state[cfg.groupKey] = master.checked;
       renderAll();
     }});
+    children.forEach(item => item.el.addEventListener('change', () => {{
+      state[item.key] = item.el.checked;
+      syncMaster();
+      renderAll();
+    }}));
+    syncMaster();
   }});
 }}
 bindLayerPanel();
@@ -1226,8 +1460,8 @@ function drawMap(rows, segs) {{
   if (state.showObitosGroup && state.showObitosPoints) {{
     obitosPts.features.filter(ft => filterPoint(ft, state.obitosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', false)
-        .bindPopup(pointPopup(ft, 'Óbito'))
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'obitos', false)
+        .bindPopup(pointPopup(ft, 'Óbito', 'obitos'))
         .addTo(overlayGroups.obitosPoints);
     }});
   }}
@@ -1235,8 +1469,8 @@ function drawMap(rows, segs) {{
   if (state.showObitosGroup && state.showObitosMicros) {{
     obitosPts.features.filter(ft => filterPoint(ft, state.obitosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', true)
-        .bindPopup(pointPopup(ft, 'Óbito'))
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'obitos', true)
+        .bindPopup(pointPopup(ft, 'Óbito', 'obitos'))
         .addTo(overlayGroups.obitosMicros);
     }});
   }}
@@ -1244,8 +1478,8 @@ function drawMap(rows, segs) {{
   if (state.showSinistrosGroup && state.showSinistrosPoints) {{
     sinistrosPts.features.filter(ft => filterPoint(ft, state.sinistrosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', false)
-        .bindPopup(pointPopup(ft, 'Sinistro'))
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'sinistros', false)
+        .bindPopup(pointPopup(ft, 'Sinistro', 'sinistros'))
         .addTo(overlayGroups.sinistrosPoints);
     }});
   }}
@@ -1253,8 +1487,8 @@ function drawMap(rows, segs) {{
   if (state.showSinistrosGroup && state.showSinistrosMicros) {{
     sinistrosPts.features.filter(ft => filterPoint(ft, state.sinistrosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', true)
-        .bindPopup(pointPopup(ft, 'Sinistro'))
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'sinistros', true)
+        .bindPopup(pointPopup(ft, 'Sinistro', 'sinistros'))
         .addTo(overlayGroups.sinistrosMicros);
     }});
   }}
@@ -1462,7 +1696,7 @@ function renderAll() {{
   state.order = fltOrder.value;
   state.year = fltYear.value;
   state.topN = Number(fltTopN.value);
-  topNLabel.textContent = `Exibindo Top ${{state.topN}} · Camadas controladas na barra lateral do mapa`;
+  topNLabel.textContent = `Exibindo Top ${{state.topN}} · O checkbox do grupo liga ou desliga todas as camadas internas.`;
 
   const rows = currentRoadRows();
   const segs = currentSegRows();
@@ -1470,7 +1704,7 @@ function renderAll() {{
   renderTimeSeries();
   drawMap(rows, segs);
   renderRoadRank(rows);
-  renderBubble(sortRows(rows, 'sinistros'));
+  renderBubble(rows);
   renderSegments(segs);
   renderCompare(rows);
 }}
@@ -1521,9 +1755,15 @@ sub_body = f"""
   <p>Unidade espacial mínima: subtrecho DER/SP · foco nas top 10 rodovias de cada tipo de evento</p>
 </header>
 <main class="geo-main">
+<section class="stats-shell">
+  <h2>Estatística</h2>
+  <p class="section-intro">Resumo consolidado do recorte por subtrecho, sincronizado aos filtros analíticos.</p>
+  <div id="sub-kpis" class="kpis"></div>
+</section>
+
 <section class="filter-shell">
-  <h2>Filtros analíticos do subtrecho</h2>
-  <p>Este painel usa o subtrecho como menor unidade de análise e limita a leitura às top 10 rodovias de cada tipo de evento.</p>
+  <h2>Filtros analíticos</h2>
+  <p class="section-intro">Este painel usa o subtrecho como menor unidade de análise e limita a leitura às rodovias líderes de cada tipo de evento.</p>
   <div class="filters">
     <label>Tipo de evento
       <select id="subEventType">
@@ -1552,33 +1792,40 @@ sub_body = f"""
     </label>
     <button id="subReset" type="button">Limpar seleção</button>
   </div>
-  <div id="sub-kpis" class="kpis"></div>
-</section>
-<div class="geo-board">
-  <section class="geo-panel map-panel">
-    <h2><i class="fa-solid fa-route"></i> Subtrechos classificados</h2>
-    <p id="sub-caption">Mapa focado apenas nas rodovias mais críticas de cada tipologia de evento.</p>
-    <div id="mapSub"></div>
-  </section>
-  <div class="geo-rail">
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-trophy"></i> Top rodovias do tipo</h2>
-      <div id="subRoadChart" class="plot-host"></div>
-    </section>
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-road-circle-exclamation"></i> Top subtrechos</h2>
-      <div id="subSegmentChart" class="plot-host"></div>
-    </section>
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-clock"></i> Evolução anual</h2>
-      <div id="subSeriesChart" class="plot-host"></div>
-    </section>
-    <section class="geo-panel">
-      <h2><i class="fa-solid fa-chart-pie"></i> Participação dos subtrechos</h2>
-      <div id="subShareChart" class="plot-host"></div>
-    </section>
+  <div class="checkline">
+    <span class="small-note">Os grupos da barra lateral do Leaflet controlam todas as camadas internas do respectivo bloco.</span>
   </div>
-</div>
+</section>
+
+<section class="analytics-shell">
+  <h2>Painel analítico</h2>
+  <p id="sub-caption" class="section-intro">Mapa e gráficos lado a lado, com resposta cruzada para tipo, rodovia, ano e indicador.</p>
+  <div class="geo-board">
+    <section class="geo-panel map-panel">
+      <h2><i class="fa-solid fa-route"></i> Subtrechos classificados</h2>
+      <div id="mapSub"></div>
+      <div class="map-tip">As categorias visuais agora combinam símbolo e cor, facilitando a leitura de cada tipo de evento.</div>
+    </section>
+    <div class="geo-rail">
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-trophy"></i> Top rodovias do tipo</h2>
+        <div id="subRoadChart" class="plot-host"></div>
+      </section>
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-road-circle-exclamation"></i> Top subtrechos</h2>
+        <div id="subSegmentChart" class="plot-host"></div>
+      </section>
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-clock"></i> Evolução anual</h2>
+        <div id="subSeriesChart" class="plot-host"></div>
+      </section>
+      <section class="geo-panel">
+        <h2><i class="fa-solid fa-chart-pie"></i> Participação dos subtrechos</h2>
+        <div id="subShareChart" class="plot-host"></div>
+      </section>
+    </div>
+  </div>
+</section>
 </main>
 <script>
 const focusMalha = {malha_focus_geo};
@@ -1617,6 +1864,19 @@ function pickColor2(value, maxValue) {{
   if (ratio >= 0.6) return '#b91c1c';
   if (ratio >= 0.35) return '#f97316';
   return '#facc15';
+}}
+function typeStyle2(kind, family='sinistros') {{
+  const k = String(kind || '').toUpperCase();
+  if (family === 'obitos') {{
+    if (k.includes('ATROPEL')) return {{ symbol: '▲', color: '#7c3aed', label: 'Atropelamento' }};
+    if (k.includes('CHOQUE')) return {{ symbol: '◆', color: '#ea580c', label: 'Choque' }};
+    if (k.includes('COLISAO')) return {{ symbol: '●', color: '#b91c1c', label: 'Colisão' }};
+    return {{ symbol: '■', color: '#7f1d1d', label: 'Outros' }};
+  }}
+  if (k.includes('ATROPEL')) return {{ symbol: '▲', color: '#6d28d9', label: 'Atropelamento' }};
+  if (k.includes('CHOQUE')) return {{ symbol: '◆', color: '#0891b2', label: 'Choque' }};
+  if (k.includes('COLISAO')) return {{ symbol: '●', color: '#0e4d92', label: 'Colisão' }};
+  return {{ symbol: '■', color: '#475569', label: 'Outros' }};
 }}
 function sameType2(row) {{
   return String(row.evento_tipo || '').toUpperCase() === state2.eventType;
@@ -1674,16 +1934,24 @@ function seriesRows2() {{
     indice_letalidade: r.n ? r.indice_letalidade / r.n : 0,
   }}));
 }}
+function kpiCard2(icon, title, value, note='', cls='') {{
+  return `<div class="kpi ${{cls}}"><div class="i"><i class="${{icon}}"></i></div><div class="t">${{title}}</div><div class="v">${{value}}</div>${{note ? `<div class="l">${{note}}</div>` : ''}}</div>`;
+}}
 function updateKpis2(rows, roads) {{
   const totalSin = rows.reduce((a, r) => a + Number(r.sinistros || 0), 0);
   const totalObi = rows.reduce((a, r) => a + Number(r.obitos || 0), 0);
-  subKpis.innerHTML = `
-    <div class="kpi ok"><div class="v">Subtrecho</div><div class="l">Unidade mínima</div></div>
-    <div class="kpi"><div class="v">${{fmt2(roads.length)}}</div><div class="l">Rodovias foco</div></div>
-    <div class="kpi"><div class="v">${{fmt2(rows.length)}}</div><div class="l">Subtrechos no recorte</div></div>
-    <div class="kpi"><div class="v">${{fmt2(totalSin)}}</div><div class="l">Sinistros</div></div>
-    <div class="kpi alert"><div class="v">${{fmt2(totalObi)}}</div><div class="l">Óbitos</div></div>`;
-  subCaption.textContent = `Tipo: ${{eventTypeNames2[state2.eventType]}} · Ano: ${{state2.year === 'ALL' ? '{anos_range}' : state2.year}} · Recorte: ${{state2.road === 'ALL' ? 'top 10 rodovias do tipo' : state2.road}}`;
+  const roadTxt = state2.road === 'ALL' ? 'Top 10 do tipo' : state2.road;
+  subKpis.innerHTML = [
+    kpiCard2('fa-solid fa-route', 'Unidade mínima', 'Subtrecho', 'Recorte espacial', 'ok'),
+    kpiCard2('fa-solid fa-filter', 'Tipo de evento', eventTypeNames2[state2.eventType], 'Filtro ativo', 'ok'),
+    kpiCard2('fa-regular fa-calendar', 'Período', state2.year === 'ALL' ? '{anos_range}' : state2.year, 'Recorte temporal'),
+    kpiCard2('fa-solid fa-road', 'Rodovia foco', roadTxt, state2.road === 'ALL' ? 'Sem seleção fixa' : 'Seleção ativa'),
+    kpiCard2('fa-solid fa-network-wired', 'Rodovias líderes', fmt2(roads.length), 'Ranking do tipo'),
+    kpiCard2('fa-solid fa-road-circle-exclamation', 'Subtrechos no recorte', fmt2(rows.length), 'Base analítica'),
+    kpiCard2('fa-solid fa-car-burst', 'Sinistros', fmt2(totalSin), 'Eventos analisados'),
+    kpiCard2('fa-solid fa-crosshairs', 'Óbitos', fmt2(totalObi), 'Eventos fatais', 'alert')
+  ].join('');
+  subCaption.textContent = `Painel integrado para ${{eventTypeNames2[state2.eventType]}} · Indicador: ${{metricNames2[state2.metric]}} · Ano: ${{state2.year === 'ALL' ? '{anos_range}' : state2.year}} · Recorte: ${{roadTxt}}.`;
 }}
 function layout2(title) {{
   return {{
@@ -1773,37 +2041,32 @@ function setLayerVisible2(group, visible) {{
   if (visible) {{ if (!mapSub.hasLayer(group)) group.addTo(mapSub); }}
   else if (mapSub.hasLayer(group)) group.remove();
 }}
-function symbolForType2(kind) {{
-  const k = String(kind || '').toUpperCase();
-  if (k.includes('ATROPEL')) return '▲';
-  if (k.includes('CHOQUE')) return '◆';
-  if (k.includes('COLISAO')) return '●';
-  return '■';
-}}
-function pointMarker2(latlng, kind, color, micro=false) {{
+function pointMarker2(latlng, kind, family='sinistros', micro=false) {{
+  const style = typeStyle2(kind, family);
   return L.marker(latlng, {{
-    pane: micro ? (color === '#b91c1c' ? 'paneObMicro2' : 'paneSinMicro2') : (color === '#b91c1c' ? 'paneObPts2' : 'paneSinPts2'),
+    pane: micro ? (family === 'obitos' ? 'paneObMicro2' : 'paneSinMicro2') : (family === 'obitos' ? 'paneObPts2' : 'paneSinPts2'),
     icon: L.divIcon({{
       className: `sym-marker ${{micro ? 'micro' : 'point'}}`,
-      html: `<span style="color:${{color}}">${{symbolForType2(kind)}}</span>`,
+      html: `<span style="color:${{style.color}}">${{style.symbol}}</span>`,
       iconSize: micro ? [12, 12] : [16, 16],
       iconAnchor: micro ? [6, 6] : [8, 8]
     }})
   }});
 }}
-function pointPopup2(ft, title) {{
+function pointPopup2(ft, title, family='sinistros') {{
+  const style = typeStyle2(ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, family);
   return `<b>${{title}}</b><br>` +
     `Ano: ${{ft.properties.ano_sinistro || '-'}}<br>` +
     `Rodovia: ${{ft.properties.Rodovia || '-'}}<br>` +
     `Município: ${{ft.properties.municipio || '-'}}<br>` +
-    `Tipo: ${{ft.properties.tp_sinistro_primario || ft.properties.evento_tipo || '-'}}`;
+    `Categoria: <span style="color:${{style.color}};font-weight:700">${{style.label}}</span>`;
 }}
 function updateLegend2() {{
   const priority = [
-    ['obitosMicros', state2.showObitosGroup && state2.showObitosMicros, '<b>Legenda — Óbitos (micropontos)</b><br><span style="color:#b91c1c;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo'],
-    ['obitosPoints', state2.showObitosGroup && state2.showObitosPoints, '<b>Legenda — Óbitos (pontos)</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#b91c1c;font-weight:800">◆</span> Choque<br><span style="color:#b91c1c;font-weight:800">▲</span> Atropelamento<br><span style="color:#b91c1c;font-weight:800">■</span> Outros'],
-    ['sinistrosMicros', state2.showSinistrosGroup && state2.showSinistrosMicros, '<b>Legenda — Sinistros (micropontos)</b><br><span style="color:#0b3a70;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo'],
-    ['sinistrosPoints', state2.showSinistrosGroup && state2.showSinistrosPoints, '<b>Legenda — Sinistros (pontos)</b><br><span style="color:#0b3a70;font-weight:800">●</span> Colisão<br><span style="color:#0b3a70;font-weight:800">◆</span> Choque<br><span style="color:#0b3a70;font-weight:800">▲</span> Atropelamento<br><span style="color:#0b3a70;font-weight:800">■</span> Outros'],
+    ['obitosMicros', state2.showObitosGroup && state2.showObitosMicros, '<b>Legenda — Óbitos por categoria</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#ea580c;font-weight:800">◆</span> Choque<br><span style="color:#7c3aed;font-weight:800">▲</span> Atropelamento<br><span style="color:#7f1d1d;font-weight:800">■</span> Outros'],
+    ['obitosPoints', state2.showObitosGroup && state2.showObitosPoints, '<b>Legenda — Óbitos por categoria</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#ea580c;font-weight:800">◆</span> Choque<br><span style="color:#7c3aed;font-weight:800">▲</span> Atropelamento<br><span style="color:#7f1d1d;font-weight:800">■</span> Outros'],
+    ['sinistrosMicros', state2.showSinistrosGroup && state2.showSinistrosMicros, '<b>Legenda — Sinistros por categoria</b><br><span style="color:#0e4d92;font-weight:800">●</span> Colisão<br><span style="color:#0891b2;font-weight:800">◆</span> Choque<br><span style="color:#6d28d9;font-weight:800">▲</span> Atropelamento<br><span style="color:#475569;font-weight:800">■</span> Outros'],
+    ['sinistrosPoints', state2.showSinistrosGroup && state2.showSinistrosPoints, '<b>Legenda — Sinistros por categoria</b><br><span style="color:#0e4d92;font-weight:800">●</span> Colisão<br><span style="color:#0891b2;font-weight:800">◆</span> Choque<br><span style="color:#6d28d9;font-weight:800">▲</span> Atropelamento<br><span style="color:#475569;font-weight:800">■</span> Outros'],
     ['heatObitos', state2.showHeatGroup && state2.showHeatObitos, '<b>Legenda — Mapa de calor de óbitos</b><br><span class="sw" style="background:#fee2e2"></span> Baixo<br><span class="sw" style="background:#ef4444"></span> Médio<br><span class="sw" style="background:#7f1d1d"></span> Alto'],
     ['heatSinistros', state2.showHeatGroup && state2.showHeatSinistros, '<b>Legenda — Mapa de calor de sinistros</b><br><span class="sw" style="background:#dbeafe"></span> Baixo<br><span class="sw" style="background:#2563eb"></span> Médio<br><span class="sw" style="background:#0b3a70"></span> Alto'],
     ['malha', state2.showMalhaGroup && (state2.showMalhaSP || state2.showMalhaSPA || state2.showMalhaSPI || state2.showMalhaSPM), '<b>Legenda — Malha estadual</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo']
@@ -1812,17 +2075,37 @@ function updateLegend2() {{
   legend2._div.innerHTML = item ? item[2] : '<b>Legenda dinâmica</b><br>Ative uma camada na barra lateral.';
 }}
 function bindLayerPanel2() {{
-  const fields = {{
-    grpObitos2: 'showObitosGroup', lyObitosPoints2: 'showObitosPoints', lyObitosMicros2: 'showObitosMicros', lyObitosYear2: 'obitosUseYear',
-    grpSinistros2: 'showSinistrosGroup', lySinistrosPoints2: 'showSinistrosPoints', lySinistrosMicros2: 'showSinistrosMicros', lySinistrosYear2: 'sinistrosUseYear',
-    grpHeat2: 'showHeatGroup', lyHeatObitos2: 'showHeatObitos', lyHeatSinistros2: 'showHeatSinistros', lyHeatYear2: 'heatUseYear',
-    grpMalha2: 'showMalhaGroup', lyMalhaSP2: 'showMalhaSP', lyMalhaSPA2: 'showMalhaSPA', lyMalhaSPI2: 'showMalhaSPI', lyMalhaSPM2: 'showMalhaSPM'
-  }};
-  Object.entries(fields).forEach(([id, key]) => {{
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = !!state2[key];
-    el.addEventListener('change', () => {{ state2[key] = el.checked; renderSubDash(); }});
+  const groups = [
+    {{ master: 'grpObitos2', groupKey: 'showObitosGroup', children: [['lyObitosPoints2', 'showObitosPoints'], ['lyObitosMicros2', 'showObitosMicros'], ['lyObitosYear2', 'obitosUseYear']] }},
+    {{ master: 'grpSinistros2', groupKey: 'showSinistrosGroup', children: [['lySinistrosPoints2', 'showSinistrosPoints'], ['lySinistrosMicros2', 'showSinistrosMicros'], ['lySinistrosYear2', 'sinistrosUseYear']] }},
+    {{ master: 'grpHeat2', groupKey: 'showHeatGroup', children: [['lyHeatObitos2', 'showHeatObitos'], ['lyHeatSinistros2', 'showHeatSinistros'], ['lyHeatYear2', 'heatUseYear']] }},
+    {{ master: 'grpMalha2', groupKey: 'showMalhaGroup', children: [['lyMalhaSP2', 'showMalhaSP'], ['lyMalhaSPA2', 'showMalhaSPA'], ['lyMalhaSPI2', 'showMalhaSPI'], ['lyMalhaSPM2', 'showMalhaSPM']] }}
+  ];
+  groups.forEach(cfg => {{
+    const master = document.getElementById(cfg.master);
+    const children = cfg.children.map(([id, key]) => ({{ el: document.getElementById(id), key }})).filter(item => item.el);
+    children.forEach(item => {{ item.el.checked = !!state2[item.key]; }});
+    const syncMaster = () => {{
+      const checkedCount = children.filter(item => item.el.checked).length;
+      master.checked = checkedCount === children.length && checkedCount > 0;
+      master.indeterminate = checkedCount > 0 && checkedCount < children.length;
+      state2[cfg.groupKey] = checkedCount > 0;
+    }};
+    master.addEventListener('change', () => {{
+      children.forEach(item => {{
+        item.el.checked = master.checked;
+        state2[item.key] = master.checked;
+      }});
+      master.indeterminate = false;
+      state2[cfg.groupKey] = master.checked;
+      renderSubDash();
+    }});
+    children.forEach(item => item.el.addEventListener('change', () => {{
+      state2[item.key] = item.el.checked;
+      syncMaster();
+      renderSubDash();
+    }}));
+    syncMaster();
   }});
 }}
 bindLayerPanel2();
@@ -1874,28 +2157,28 @@ function drawMap2(rows) {{
   if (state2.showObitosGroup && state2.showObitosPoints) {{
     obitosPts2.features.filter(ft => filterPoint2(ft, state2.obitosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', false).bindPopup(pointPopup2(ft, 'Óbito')).addTo(overlayGroups2.obitosPoints);
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'obitos', false).bindPopup(pointPopup2(ft, 'Óbito', 'obitos')).addTo(overlayGroups2.obitosPoints);
     }});
   }}
   setLayerVisible2(overlayGroups2.obitosMicros, state2.showObitosGroup && state2.showObitosMicros);
   if (state2.showObitosGroup && state2.showObitosMicros) {{
     obitosPts2.features.filter(ft => filterPoint2(ft, state2.obitosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', true).bindPopup(pointPopup2(ft, 'Óbito')).addTo(overlayGroups2.obitosMicros);
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'obitos', true).bindPopup(pointPopup2(ft, 'Óbito', 'obitos')).addTo(overlayGroups2.obitosMicros);
     }});
   }}
   setLayerVisible2(overlayGroups2.sinistrosPoints, state2.showSinistrosGroup && state2.showSinistrosPoints);
   if (state2.showSinistrosGroup && state2.showSinistrosPoints) {{
     sinistrosPts2.features.filter(ft => filterPoint2(ft, state2.sinistrosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', false).bindPopup(pointPopup2(ft, 'Sinistro')).addTo(overlayGroups2.sinistrosPoints);
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'sinistros', false).bindPopup(pointPopup2(ft, 'Sinistro', 'sinistros')).addTo(overlayGroups2.sinistrosPoints);
     }});
   }}
   setLayerVisible2(overlayGroups2.sinistrosMicros, state2.showSinistrosGroup && state2.showSinistrosMicros);
   if (state2.showSinistrosGroup && state2.showSinistrosMicros) {{
     sinistrosPts2.features.filter(ft => filterPoint2(ft, state2.sinistrosUseYear)).forEach(ft => {{
       const coords = ft.geometry.coordinates;
-      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', true).bindPopup(pointPopup2(ft, 'Sinistro')).addTo(overlayGroups2.sinistrosMicros);
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, 'sinistros', true).bindPopup(pointPopup2(ft, 'Sinistro', 'sinistros')).addTo(overlayGroups2.sinistrosMicros);
     }});
   }}
   setLayerVisible2(overlayGroups2.heatSinistros, state2.showHeatGroup && state2.showHeatSinistros);
