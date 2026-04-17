@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: acidentes-infosiga
+    runtime: static
+    staticPublishPath: ./docs
+    pullRequestPreviewsEnabled: false
+    headers:
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+    routes:
+      - type: rewrite
+        source: /
+        destination: /index.html
