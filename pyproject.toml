@@ -1,0 +1,31 @@
+[tool.pylint.main]
+ignore-paths = [".venv", "docs", "dados", "analise/out"]
+
+[tool.pylint.format]
+max-line-length = 260
+
+[tool.pylint."messages control"]
+disable = [
+    "C0103",
+    "C0114",
+    "C0115",
+    "C0116",
+    "C0121",
+    "C0301",
+    "C0321",
+    "C0325",
+    "W0621",
+    "W0611",
+    "W0702",
+    "W0703",
+    "W1309",
+    "W1514",
+    "R0912",
+    "R0913",
+    "R0914",
+    "R0915",
+    "R0902",
+    "R0903",
+    "R0904",
+    "R1732",
+]

@@ -1,0 +1,2062 @@
+"""Gera as páginas HTML do dashboard Infosiga SP.
+
+Páginas:
+  docs/index.html                 (portal)
+  docs/dashboard_principal.html   (29+ gráficos em 6 categorias)
+  docs/RELATORIO_EXECUTIVO.html   (relatório analítico)
+  docs/analise_geografica.html    (dashboard 1 — rodovias)
+  docs/analise_subtrechos.html    (dashboard 2 — subtrechos)
+  docs/GUIA_ACESSO.html           (navegação)
+"""
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pandas as pd
+import plotly.graph_objects as go
+import plotly.io as pio
+
+ROOT = Path(r"d:\acidentes_infosiga_analise_exploratoria")
+OUT = ROOT / "analise" / "out"
+DOCS = ROOT / "docs"
+DOCS.mkdir(exist_ok=True)
+
+# ================= CARREGA DADOS =================
+def j(name):
+    return json.load(open(OUT / name, encoding="utf-8"))
+
+kpi = j("kpi.json")
+ag_ano = pd.DataFrame(j("agg_ano.json"))
+ag_mes = pd.DataFrame(j("agg_mes.json"))
+ag_dia = pd.DataFrame(j("agg_dia_semana.json"))
+ag_turno = pd.DataFrame(j("agg_turno.json"))
+ag_hora = pd.DataFrame(j("agg_hora.json"))
+ag_tp = pd.DataFrame(j("agg_tipo_sinistro.json"))
+ag_via = pd.DataFrame(j("agg_tipo_via.json"))
+ag_adm = pd.DataFrame(j("agg_administracao.json"))
+ag_reg = pd.DataFrame(j("agg_regiao.json"))
+ag_mun = pd.DataFrame(j("agg_municipios.json"))
+ag_modo = j("agg_modo.json")
+ag_pes = j("agg_pessoas.json")
+rod = j("rodovias_rank.json")
+trc = j("trechos_rank.json")
+subtr = j("subtrechos_analise.json")
+
+def br(n):
+    """Formata número inteiro no padrão brasileiro (1.234.567)."""
+    return f"{int(n):,}".replace(",", ".")
+
+
+def pct(n, casas=1):
+    """Formata percentual decimal no padrão brasileiro."""
+    return f"{float(n):.{casas}f}".replace(".", ",")
+
+
+# ================= PLOTLY THEME =================
+pio.templates.default = "plotly_white"
+COLORS = {
+    "primary": "#0e4d92",       # azul SP
+    "accent": "#d52b1e",        # vermelho SP
+    "warn": "#f7b500",
+    "ok": "#2e8b57",
+    "muted": "#6b7280",
+    "seq": ["#0e4d92", "#d52b1e", "#f7b500", "#2e8b57", "#7c3aed", "#0ea5e9", "#ea580c", "#065f46"],
+}
+LAYOUT = dict(
+    font=dict(family="Inter, Segoe UI, sans-serif", size=12, color="#1f2937"),
+    margin=dict(l=90, r=40, t=80, b=120),
+    title=dict(font=dict(size=16, color=COLORS["primary"]), x=0.02, xanchor="left"),
+    colorway=COLORS["seq"],
+    plot_bgcolor="white",
+    paper_bgcolor="white",
+    autosize=True,
+    height=430,
+    legend=dict(orientation="h", yanchor="top", y=-0.18, xanchor="center", x=0.5, title_text=""),
+)
+
+def fig_html(fig, div_id):
+    fig.update_layout(**LAYOUT)
+    fig.update_xaxes(automargin=True)
+    fig.update_yaxes(automargin=True)
+    has_heatmap = False
+    has_horizontal_bar = False
+    has_pie = False
+    for tr in fig.data:
+        if tr.type == "bar":
+            tr.cliponaxis = False
+            if getattr(tr, "orientation", None) == "h":
+                has_horizontal_bar = True
+        if tr.type == "heatmap":
+            has_heatmap = True
+        if tr.type == "pie":
+            has_pie = True
+    if has_pie:
+        fig.update_layout(height=460, margin=dict(l=40, r=40, t=80, b=120))
+    if has_heatmap:
+        fig.update_layout(height=460, margin=dict(l=90, r=110, t=80, b=90))
+    if has_horizontal_bar:
+        fig.update_layout(height=520, margin=dict(l=140, r=60, t=80, b=110))
+    return pio.to_html(fig, include_plotlyjs=False, full_html=False, div_id=div_id,
+                       config={"displaylogo": False, "responsive": True})
+
+# ================= FIGURAS =================
+FIGS = {}
+
+# --- Visão geral ---
+f = go.Figure()
+f.add_bar(x=ag_ano["ano_sinistro"], y=ag_ano["sinistros"], name="Sinistros",
+          marker_color=COLORS["primary"], text=ag_ano["sinistros"], textposition="outside")
+f.update_layout(title="Total de Sinistros por Ano (2014-2026)", xaxis_title="Ano", yaxis_title="Sinistros")
+FIGS["sinistros_ano"] = f
+
+f = go.Figure()
+f.add_bar(x=ag_ano["ano_sinistro"], y=ag_ano["vitimas_fatais"], name="Óbitos",
+          marker_color=COLORS["accent"], text=ag_ano["vitimas_fatais"], textposition="outside")
+f.update_layout(title="Óbitos por Ano", xaxis_title="Ano", yaxis_title="Óbitos")
+FIGS["obitos_ano"] = f
+
+f = go.Figure()
+for col, name, color in [("vitimas_fatais", "Fatais", COLORS["accent"]),
+                          ("vitimas_graves", "Graves", COLORS["warn"]),
+                          ("vitimas_leves", "Leves", COLORS["primary"])]:
+    f.add_bar(x=ag_ano["ano_sinistro"], y=ag_ano[col], name=name, marker_color=color)
+f.update_layout(barmode="stack", title="Vítimas por Gravidade (empilhado) — por Ano",
+                xaxis_title="Ano", yaxis_title="Vítimas")
+FIGS["vitimas_gravidade_ano"] = f
+
+f = go.Figure(data=[go.Pie(labels=list(ag_modo.keys()), values=list(ag_modo.values()),
+                           hole=.4, marker=dict(colors=COLORS["seq"]))])
+f.update_layout(title="Modal / Tipo de Veículo Envolvido (participações)")
+FIGS["modal"] = f
+
+# --- Tipos de sinistro ---
+top = ag_tp.head(10).sort_values("sinistros")
+f = go.Figure()
+f.add_bar(x=top["sinistros"], y=top["tp_sinistro_primario"], orientation="h",
+         marker_color=COLORS["primary"], text=top["sinistros"], textposition="outside")
+f.update_layout(title="Top 10 Tipos de Sinistro (2014-2026)", xaxis_title="Sinistros", yaxis_title="")
+FIGS["tipos_sinistro"] = f
+
+top2 = ag_tp.head(10)
+f = go.Figure()
+f.add_bar(x=top2["tp_sinistro_primario"], y=top2["fatais"], name="Óbitos",
+         marker_color=COLORS["accent"])
+f.add_bar(x=top2["tp_sinistro_primario"], y=top2["graves"], name="Feridos Graves",
+         marker_color=COLORS["warn"])
+f.update_layout(barmode="group", title="Gravidade por Tipo de Sinistro — Top 10",
+                xaxis_title="", yaxis_title="Vítimas")
+FIGS["tipos_gravidade"] = f
+
+# --- Vítimas / demografia ---
+grav = pd.DataFrame(ag_pes["gravidade"]).dropna()
+f = go.Figure(data=[go.Pie(labels=grav["gravidade_lesao"], values=grav["n"], hole=.35,
+                           marker=dict(colors=COLORS["seq"]))])
+f.update_layout(title="Distribuição de Vítimas por Gravidade da Lesão")
+FIGS["gravidade_lesao"] = f
+
+sx = pd.DataFrame(ag_pes["sexo"]).dropna()
+f = go.Figure(data=[go.Pie(labels=sx["sexo"], values=sx["n"], hole=.4,
+                           marker=dict(colors=[COLORS["primary"], COLORS["accent"], COLORS["muted"]]))])
+f.update_layout(title="Distribuição de Vítimas por Sexo")
+FIGS["sexo"] = f
+
+fe = pd.DataFrame(ag_pes["faixa_etaria"]).dropna()
+fe = fe[fe["faixa_etaria_demografica"].str.contains("NAO DISPONIVEL") == False]
+ordem_faixa = ["0 a 4", "5 a 9", "10 a 14", "15 a 19", "20 a 24", "25 a 29",
+               "30 a 34", "35 a 39", "40 a 44", "45 a 49", "50 a 54", "55 a 59",
+               "60 a 64", "65 a 69", "70 a 74", "75 a 79", "80 a 84", "85 ou mais"]
+fe["ord"] = fe["faixa_etaria_demografica"].map({k: i for i, k in enumerate(ordem_faixa)})
+fe = fe.sort_values("ord")
+f = go.Figure()
+f.add_bar(x=fe["faixa_etaria_demografica"], y=fe["n"], marker_color=COLORS["primary"])
+f.update_layout(title="Vítimas por Faixa Etária", xaxis_title="Faixa etária", yaxis_title="Vítimas")
+FIGS["faixa_etaria"] = f
+
+tv = pd.DataFrame(ag_pes["tipo_vitima"]).dropna()
+tv = tv.sort_values("n", ascending=True).tail(10)
+f = go.Figure()
+f.add_bar(x=tv["n"], y=tv["tipo_de_vitima"], orientation="h", marker_color=COLORS["accent"])
+f.update_layout(title="Tipo de Vítima (Top 10)", xaxis_title="Vítimas", yaxis_title="")
+FIGS["tipo_vitima"] = f
+
+ob_ano = pd.DataFrame(ag_pes["obitos_por_ano"]).dropna()
+f = go.Figure()
+f.add_scatter(x=ob_ano["ano_sinistro"], y=ob_ano["n"], mode="lines+markers",
+             line=dict(color=COLORS["accent"], width=3), marker=dict(size=9))
+f.update_layout(title="Evolução de Óbitos por Ano (registro individual)", xaxis_title="Ano", yaxis_title="Óbitos")
+FIGS["obitos_trend"] = f
+
+tvi = pd.DataFrame(ag_pes["obitos_tipo_vitima"]).dropna().head(8)
+f = go.Figure(data=[go.Pie(labels=tvi["tipo_de_vitima"], values=tvi["n"], hole=.35)])
+f.update_layout(title="Óbitos por Tipo de Vítima")
+FIGS["obitos_tipo"] = f
+
+# --- Temporais ---
+ag_mes["ym"] = ag_mes["ano_sinistro"].astype(str) + "-" + ag_mes["mes_sinistro"].astype(str).str.zfill(2)
+ag_mes_s = ag_mes.sort_values(["ano_sinistro", "mes_sinistro"])
+f = go.Figure()
+f.add_scatter(x=ag_mes_s["ym"], y=ag_mes_s["sinistros"], mode="lines", name="Sinistros",
+             line=dict(color=COLORS["primary"], width=2))
+f.update_layout(title="Série Temporal Mensal — Sinistros", xaxis_title="Ano/Mês", yaxis_title="Sinistros")
+FIGS["ts_mensal"] = f
+
+pivot = ag_mes.pivot(index="mes_sinistro", columns="ano_sinistro", values="sinistros")
+f = go.Figure(data=go.Heatmap(z=pivot.values, x=pivot.columns, y=pivot.index,
+                              colorscale="Reds", colorbar=dict(title="Sinistros")))
+f.update_layout(title="Sazonalidade — Sinistros (Mês × Ano)",
+                xaxis_title="Ano", yaxis_title="Mês")
+FIGS["heat_sazonalidade"] = f
+
+f = go.Figure()
+f.add_bar(x=ag_dia["dia_da_semana"], y=ag_dia["sinistros"], marker_color=COLORS["primary"])
+f.update_layout(title="Sinistros por Dia da Semana", xaxis_title="Dia", yaxis_title="Sinistros")
+FIGS["dia_semana"] = f
+
+f = go.Figure()
+f.add_bar(x=ag_dia["dia_da_semana"], y=ag_dia["fatais"], marker_color=COLORS["accent"])
+f.update_layout(title="Óbitos por Dia da Semana", xaxis_title="Dia", yaxis_title="Óbitos")
+FIGS["fatais_dia_semana"] = f
+
+f = go.Figure()
+f.add_bar(x=ag_turno["turno"], y=ag_turno["sinistros"], marker_color=COLORS["primary"], name="Sinistros")
+f.add_bar(x=ag_turno["turno"], y=ag_turno["fatais"] * 20, marker_color=COLORS["accent"],
+         name="Óbitos (×20)")
+f.update_layout(title="Sinistros e Óbitos por Turno", barmode="group",
+                xaxis_title="Turno", yaxis_title="Quantidade")
+FIGS["turno"] = f
+
+f = go.Figure()
+f.add_bar(x=ag_hora["hora_num"], y=ag_hora["sinistros"], marker_color=COLORS["primary"], name="Sinistros")
+f.add_scatter(x=ag_hora["hora_num"], y=ag_hora["fatais"] * 20, mode="lines+markers",
+             line=dict(color=COLORS["accent"], width=3), name="Óbitos (×20)", yaxis="y")
+f.update_layout(title="Distribuição Horária (0–23h)", xaxis_title="Hora do dia", yaxis_title="Quantidade")
+FIGS["hora"] = f
+
+# --- Geográfica (visões gerais) ---
+rg = ag_reg.dropna().sort_values("sinistros", ascending=True).tail(15)
+f = go.Figure()
+f.add_bar(x=rg["sinistros"], y=rg["regiao_administrativa"], orientation="h",
+         marker_color=COLORS["primary"])
+f.update_layout(title="Sinistros por Região Administrativa (Top 15)",
+                xaxis_title="Sinistros", yaxis_title="")
+FIGS["regiao"] = f
+
+rgf = ag_reg.dropna().sort_values("fatais", ascending=True).tail(15)
+f = go.Figure()
+f.add_bar(x=rgf["fatais"], y=rgf["regiao_administrativa"], orientation="h",
+         marker_color=COLORS["accent"])
+f.update_layout(title="Óbitos por Região Administrativa (Top 15)",
+                xaxis_title="Óbitos", yaxis_title="")
+FIGS["regiao_obitos"] = f
+
+mn = ag_mun.dropna().head(20).sort_values("fatais", ascending=True)
+f = go.Figure()
+f.add_bar(x=mn["fatais"], y=mn["municipio"], orientation="h", marker_color=COLORS["accent"])
+f.update_layout(title="Top 20 Municípios em Óbitos",
+                xaxis_title="Óbitos", yaxis_title="")
+FIGS["municipios_obitos"] = f
+
+vm = ag_via.dropna().head(10).sort_values("sinistros", ascending=True)
+f = go.Figure()
+f.add_bar(x=vm["sinistros"], y=vm["tipo_via"], orientation="h", marker_color=COLORS["primary"])
+f.update_layout(title="Sinistros por Tipo de Via", xaxis_title="Sinistros", yaxis_title="")
+FIGS["tipo_via"] = f
+
+adm = ag_adm.dropna()
+f = go.Figure(data=[go.Pie(labels=adm["administracao"], values=adm["sinistros"], hole=.4)])
+f.update_layout(title="Sinistros por Tipo de Administração da Via")
+FIGS["administracao"] = f
+
+# --- Padrões e correlações ---
+# Heatmap Dia × Turno
+sin = pd.read_parquet(OUT / "sinistros.parquet", columns=["dia_da_semana", "turno", "hora_num", "tem_fatal"])
+hm = sin.pivot_table(index="turno", columns="dia_da_semana", values="hora_num",
+                     aggfunc="count", fill_value=0)
+dias_order = ["SEGUNDA-FEIRA", "TERCA-FEIRA", "QUARTA-FEIRA", "QUINTA-FEIRA",
+              "SEXTA-FEIRA", "SABADO", "DOMINGO"]
+hm = hm[[d for d in dias_order if d in hm.columns]]
+turnos_order = ["MADRUGADA", "MANHA", "TARDE", "NOITE"]
+hm = hm.reindex([t for t in turnos_order if t in hm.index])
+f = go.Figure(data=go.Heatmap(z=hm.values, x=hm.columns, y=hm.index, colorscale="YlOrRd",
+                              colorbar=dict(title="Sinistros")))
+f.update_layout(title="Mapa de Calor — Dia da Semana × Turno", xaxis_title="", yaxis_title="Turno")
+FIGS["heat_dia_turno"] = f
+
+# Letalidade por hora
+ag_hora["letalidade"] = ag_hora["fatais"] / ag_hora["sinistros"] * 100
+f = go.Figure()
+f.add_scatter(x=ag_hora["hora_num"], y=ag_hora["letalidade"], mode="lines+markers",
+             line=dict(color=COLORS["accent"], width=3), marker=dict(size=9))
+f.update_layout(title="Índice de Letalidade por Hora (% sinistros com óbito)",
+                xaxis_title="Hora do dia", yaxis_title="% letalidade")
+FIGS["letalidade_hora"] = f
+
+# Tempo sinistro-óbito
+to = ag_pes["tempo_obito_hist"]["values"]
+tx = list(map(int, to.keys()))
+ty = list(to.values())
+order = sorted(range(len(tx)), key=lambda i: tx[i])
+tx = [tx[i] for i in order]; ty = [ty[i] for i in order]
+f = go.Figure()
+f.add_bar(x=tx, y=ty, marker_color=COLORS["accent"])
+f.update_layout(title="Tempo entre Sinistro e Óbito (dias) — 0 a 180",
+                xaxis_title="Dias", yaxis_title="Óbitos")
+FIGS["tempo_obito"] = f
+
+# Evolução % vítimas por modo (usando pivot anos x modal aproximado)
+# simples: linha de sinistros por ano vs óbitos por ano com razão
+ag_ano["letalidade"] = ag_ano["vitimas_fatais"] / ag_ano["sinistros"] * 100
+f = go.Figure()
+f.add_scatter(x=ag_ano["ano_sinistro"], y=ag_ano["letalidade"], mode="lines+markers",
+             line=dict(color=COLORS["accent"], width=3), name="Letalidade (%)")
+f.update_layout(title="Índice Anual de Letalidade (% sinistros com óbito)",
+                xaxis_title="Ano", yaxis_title="%")
+FIGS["letalidade_ano"] = f
+
+# ================= FIG GEOGRÁFICA — rodovias =================
+def rod_bar(records, key, title, color):
+    df = pd.DataFrame(records).sort_values(key, ascending=True)
+    f = go.Figure()
+    f.add_bar(x=df[key], y=df["Rodovia"], orientation="h", marker_color=color,
+             text=df[key].round(2), textposition="outside")
+    f.update_layout(title=title, xaxis_title=key, yaxis_title="")
+    return f
+
+FIGS["rod_top_sin"] = rod_bar(rod["top10_sinistros"], "sinistros",
+                              "Top 10 Rodovias — Sinistros (2014-2026)", COLORS["primary"])
+FIGS["rod_top_obi"] = rod_bar(rod["top10_obitos"], "obitos",
+                              "Top 10 Rodovias — Óbitos", COLORS["accent"])
+FIGS["rod_top_dens"] = rod_bar(rod["top10_densidade"], "sinistros_por_km",
+                               "Top 10 Rodovias por Densidade (Sinistros/km) — ≥20km", COLORS["warn"])
+FIGS["rod_top_let"] = rod_bar(rod["top10_letalidade"], "indice_letalidade",
+                              "Top 10 Rodovias — Letalidade (%) — ≥100 sinistros", COLORS["accent"])
+FIGS["rod_bottom_sin"] = rod_bar(rod["bottom10_sinistros"], "sinistros",
+                                 "10 Rodovias com Menos Sinistros (≥5 eventos)", COLORS["ok"])
+
+# Trechos
+def trc_bar(records, key, title, color, labelcol="trecho_id"):
+    df = pd.DataFrame(records).sort_values(key, ascending=True)
+    df["label"] = df[labelcol].str.slice(0, 55)
+    f = go.Figure()
+    f.add_bar(x=df[key], y=df["label"], orientation="h", marker_color=color,
+             text=df[key].round(2), textposition="outside")
+    f.update_layout(title=title, xaxis_title=key, yaxis_title="", height=500)
+    return f
+
+FIGS["trc_top_sin"] = trc_bar(trc["top10_sinistros"], "sinistros",
+                              "Top 10 Trechos (Subtrechos) — Sinistros", COLORS["primary"])
+FIGS["trc_top_obi"] = trc_bar(trc["top10_obitos"], "obitos",
+                              "Top 10 Trechos — Óbitos", COLORS["accent"])
+FIGS["trc_top_dens"] = trc_bar(trc["top10_densidade"], "sinistros_por_km",
+                               "Top 10 Trechos por Densidade (Sinistros/km)", COLORS["warn"])
+FIGS["trc_top_ob_km"] = trc_bar(trc["top10_obitos_km"], "obitos_por_km",
+                                "Top 10 Trechos por Óbitos/km", COLORS["accent"])
+
+# Trechos da rodovia campeã
+tc = trc["top10_trechos_rodovia_campea"]
+FIGS["trc_campea"] = trc_bar(tc["trechos"], "sinistros",
+                             f"Top 10 Trechos da Rodovia Campeã — {tc['rodovia']}",
+                             COLORS["primary"])
+
+# ================= TEMPLATE BASE =================
+CSS = """
+:root{--azul:#0e4d92;--vermelho:#d52b1e;--amarelo:#f7b500;--verde:#2e8b57;--bg:#f3f4f6;--ink:#1f2937;--muted:#6b7280;}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+header.hero{background:linear-gradient(135deg,#0e4d92 0%,#1e40af 60%,#d52b1e 140%);color:white;padding:48px 24px;text-align:center}
+header.hero h1{margin:0 0 8px;font-size:2.2em;letter-spacing:.5px}
+header.hero p{margin:4px 0;opacity:.95}
+nav.top{background:#0b3a70;padding:10px 24px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:sticky;top:0;z-index:10}
+nav.top a{color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;font-weight:500;font-size:.95em}
+nav.top a:hover{background:#d52b1e}
+nav.top i,section h2 i,.card h3 i{margin-right:6px}
+main{max-width:1400px;margin:0 auto;padding:28px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px;margin:18px 0 0}
+.kpi{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);padding:18px 14px;border-radius:14px;border:1px solid #dbe3ee;box-shadow:0 4px 14px rgba(15,23,42,.06);min-height:150px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
+.kpi .i{font-size:1.3rem;line-height:1;color:var(--azul);margin-bottom:8px}
+.kpi .t{font-size:.96rem;font-weight:700;color:#0f172a}
+.kpi .v{margin-top:10px;font-size:1.95em;font-weight:800;color:var(--azul);line-height:1.1}
+.kpi .l{margin-top:6px;color:var(--muted);font-size:.82em;letter-spacing:.1px}
+.kpi.alert .i,.kpi.alert .v{color:var(--vermelho)}
+.kpi.warn .i,.kpi.warn .v{color:#b88700}
+.kpi.ok .i,.kpi.ok .v{color:var(--verde)}
+section{background:white;margin:24px 0;padding:24px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+section h2{color:var(--azul);margin-top:0;border-bottom:3px solid var(--vermelho);padding-bottom:8px;display:inline-block}
+.section-intro{margin:0 0 8px;color:var(--muted)}
+.stats-shell,.filter-shell,.analytics-shell{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);border:1px solid #dbe3ee}
+section h3{color:var(--azul);margin-top:28px}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:24px;margin-top:16px;align-items:start}
+.chart{background:#fafafa;padding:18px 18px 28px;border-radius:8px;border:1px solid #e5e7eb;overflow:visible;min-width:0;min-height:460px}
+.chart > div{width:100%!important;min-height:420px}
+.js-plotly-plot,.plot-container{width:100%!important}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,.1)}
+.card h3{margin:0 0 8px;color:var(--azul);font-size:1.1em}
+.card p{color:var(--muted);font-size:.9em}
+.card a{display:inline-block;margin-top:10px;background:var(--azul);color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:.9em}
+.card a:hover{background:var(--vermelho)}
+.alert-box{background:#fff7ed;border-left:4px solid var(--amarelo);padding:12px 16px;margin:16px 0;border-radius:6px}
+.insight{background:#eef4ff;border-left:4px solid var(--azul);padding:12px 16px;margin:16px 0;border-radius:6px}
+.danger{background:#fef2f2;border-left:4px solid var(--vermelho);padding:12px 16px;margin:16px 0;border-radius:6px}
+table.tbl{width:100%;border-collapse:collapse;margin-top:12px;font-size:.92em}
+table.tbl th,table.tbl td{padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:left}
+table.tbl thead{background:var(--azul);color:white}
+table.tbl tr:nth-child(even){background:#f9fafb}
+footer{background:#0b3a70;color:#cbd5e1;padding:24px;text-align:center;margin-top:40px}
+footer a{color:#fff;text-decoration:none}
+#map,#mapSub{height:760px;border-radius:12px;border:1px solid #dbe3ee}
+.legend-map{background:white;padding:10px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.16);font-size:.85em;line-height:1.55;max-width:260px}
+.legend-map .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.layer-sidebar{background:rgba(255,255,255,.96);padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.18);min-width:240px;max-width:280px;font-size:.84em;line-height:1.45;border:1px solid #dbe3ee}
+.layer-sidebar h4{margin:0 0 8px;color:var(--azul);font-size:.95em}
+.layer-group{border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+.layer-group:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.layer-group .master{font-weight:700;color:#0b3a70;display:flex;gap:8px;align-items:center}
+.layer-items{padding-left:20px;margin-top:6px;display:grid;gap:4px}
+.layer-items label{display:flex;gap:8px;align-items:center;color:#334155}
+.sym-marker span{display:inline-flex;align-items:center;justify-content:center;font-weight:800;text-shadow:0 1px 1px rgba(255,255,255,.6)}
+.sym-marker.point span{font-size:16px}
+.sym-marker.micro span{font-size:11px}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.8em;margin-right:4px}
+.geo-main{max-width:none;width:100%;padding:20px 24px 32px}
+.filter-shell{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);margin:20px 0;padding:20px 22px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end;margin-top:14px}
+.filters label{display:flex;flex-direction:column;gap:6px;font-weight:600;color:var(--azul);font-size:.92em}
+.filters select,.filters input,.filters button{border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font:inherit;background:white;color:var(--ink)}
+.filters button{background:var(--azul);color:white;font-weight:600;cursor:pointer}
+.filters button:hover{background:#0b3a70}
+.checkline{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:8px}
+.checkline label{display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--ink)}
+.geo-board{display:grid;grid-template-columns:minmax(640px,1.35fr) minmax(420px,1fr);gap:18px;margin-top:18px;align-items:start;padding:18px;border-radius:18px;background:linear-gradient(180deg,#eef5ff 0%,#f8fbff 100%);box-shadow:0 8px 24px rgba(15,23,42,.08);border:1px solid #dbe3ee}
+.geo-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-content:start}
+.geo-panel{background:white;padding:16px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee;min-width:0}
+.geo-panel.map-panel{position:sticky;top:76px}
+.geo-rail .geo-panel h2{font-size:1em;margin-bottom:8px}
+.plot-host{width:100%;min-height:260px}
+.plot-timeline{min-height:220px;margin-top:10px}
+.layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.layer-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.82em;font-weight:600}
+.map-tip{background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;margin-top:12px;color:var(--muted);font-size:.9em}
+.leaflet-control-layers{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.18)!important;border-radius:10px!important}
+.leaflet-control-layers-expanded{padding:10px 12px;background:white}
+.leaflet-popup-content{line-height:1.45}
+.small-note{color:var(--muted);font-size:.92em;margin-top:6px}
+@media (max-width: 1100px){
+  main,.geo-main{padding:16px}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .chart-grid{grid-template-columns:1fr}
+  .chart{min-height:400px}
+  .chart > div{min-height:360px}
+  .geo-board{grid-template-columns:1fr;padding:12px}
+  .geo-rail{grid-template-columns:1fr}
+  .geo-panel.map-panel{position:static}
+  #map,#mapSub{height:560px}
+}
+@media (max-width: 680px){
+  .kpis{grid-template-columns:1fr}
+}
+"""
+
+NAV = """
+<nav class="top">
+  <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
+  <a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a>
+  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dash Rodovias</a>
+  <a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dash Subtrechos</a>
+  <a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a>
+  <a href="GUIA_ACESSO.html"><i class="fa-solid fa-book"></i> Guia</a>
+</nav>
+"""
+
+FOOTER = f"""
+<footer>
+  <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
+  <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
+  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em {pd.Timestamp.now().strftime('%d/%m/%Y %H:%M')}</div>
+</footer>
+"""
+
+def html_page(title, body, extra_head=""):
+    return f"""<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>{CSS}</style>
+{extra_head}
+</head>
+<body>
+{NAV}
+{body}
+{FOOTER}
+</body></html>"""
+
+# ============ PORTAL ============
+kpi_html = f"""
+<div class="kpis">
+  <div class="kpi"><div class="v">{br(kpi['total_sinistros'])}</div><div class="l">Sinistros</div></div>
+  <div class="kpi alert"><div class="v">{br(kpi['total_obitos'])}</div><div class="l">Óbitos</div></div>
+  <div class="kpi warn"><div class="v">{br(kpi['total_graves'])}</div><div class="l">Feridos graves</div></div>
+  <div class="kpi"><div class="v">{br(kpi['total_leves'])}</div><div class="l">Feridos leves</div></div>
+  <div class="kpi"><div class="v">{br(kpi['total_pessoas'])}</div><div class="l">Pessoas envolvidas</div></div>
+  <div class="kpi ok"><div class="v">{pct(kpi['perc_com_coord'])}%</div><div class="l">Com geolocalização</div></div>
+</div>
+"""
+
+cards_html = """
+<div class="card-grid">
+  <div class="card">
+    <h3><i class="fa-solid fa-chart-column"></i> Dashboard Interativo</h3>
+    <p>Todos os gráficos organizados em cinco categorias temáticas: Visão Geral, Vítimas &amp; Demografia, Séries Temporais, Geográfica e Padrões.</p>
+    <a href="dashboard_principal.html">Acessar Dashboard</a>
+  </div>
+  <div class="card">
+    <h3><i class="fa-solid fa-road"></i> Dashboard de Rodovias</h3>
+    <p>Visão tática por rodovia, tipo de evento e ano, aproveitando a malha completa do DER/SP no mapa interativo.</p>
+    <a href="analise_geografica.html">Abrir Dashboard 1</a>
+  </div>
+  <div class="card">
+    <h3><i class="fa-solid fa-route"></i> Dashboard de Subtrechos</h3>
+    <p>Visão detalhada por subtrecho, tipo de evento e ano, focada nas top 10 rodovias de cada tipologia de sinistro.</p>
+    <a href="analise_subtrechos.html">Abrir Dashboard 2</a>
+  </div>
+  <div class="card">
+    <h3><i class="fa-solid fa-file-lines"></i> Relatório Executivo</h3>
+    <p>Visão analítica consolidada, com principais achados, contextualização do Infosiga, ressalvas metodológicas e recomendações.</p>
+    <a href="RELATORIO_EXECUTIVO.html">Ler Relatório</a>
+  </div>
+  <div class="card">
+    <h3><i class="fa-solid fa-book"></i> Guia de Acesso</h3>
+    <p>Lista de todos os gráficos, descrição das análises e navegação rápida entre as páginas.</p>
+    <a href="GUIA_ACESSO.html">Ver Guia</a>
+  </div>
+</div>
+"""
+
+anos_range = f"{kpi['ano_min']} – {kpi['ano_max']}"
+portal_body = f"""
+<header class="hero">
+  <h1>Análise de Acidentes Rodoviários — Infosiga SP</h1>
+  <p>Análise Exploratória Completa — Estado de São Paulo · {anos_range}</p>
+  <p style="font-size:.9em;opacity:.85">Base oficial Detran SP · Malha Rodoviária DER/SP</p>
+</header>
+<main>
+{kpi_html}
+<section>
+  <h2>Sobre esta análise</h2>
+  <p>Esta análise integra a base pública <strong>Infosiga SP</strong> (sinistros, vítimas e veículos, 2014–2026) à
+  <strong>Malha Rodoviária Estadual</strong> do DER/SP, caracterizando padrões temporais, demográficos, modais e geográficos
+  dos sinistros de trânsito no estado de São Paulo. Todos os gráficos são interativos (Plotly) e o mapa é navegável (Leaflet).</p>
+  <div class="insight"><strong>Contextualização do Infosiga:</strong> o Infosiga é o sistema oficial de integração
+  de dados de sinistros de trânsito do Estado de São Paulo, mantido pelo Detran-SP com contribuição da ARTESP, do DER,
+  das Polícias Civil, Militar e Rodoviária Federal, e da Fundação Seade. O sistema consolida três visões (sinistro,
+  vítima e veículo) e alimenta o painel público
+  (<a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a>). <strong>Ressalva:</strong> os registros
+  possuem caráter notificacional; dados recentes (≤ 90 dias) são preliminares; a geolocalização é derivada dos
+  boletins e apresenta cobertura de {pct(kpi['perc_com_coord'])}% neste conjunto.</div>
+</section>
+<section>
+  <h2>Recursos Disponíveis</h2>
+  {cards_html}
+</section>
+<section>
+  <h2>Indicadores-chave (todo o período)</h2>
+  <ul>
+    <li><strong>Sinistros registrados:</strong> {br(kpi['total_sinistros'])}</li>
+    <li><strong>Sinistros com vítima:</strong> {br(kpi['total_sinistros_com_vitima'])} ({pct(kpi['total_sinistros_com_vitima']/kpi['total_sinistros']*100)}%)</li>
+    <li><strong>Sinistros fatais:</strong> {br(kpi['total_sinistros_fatais'])} ({pct(kpi['total_sinistros_fatais']/kpi['total_sinistros']*100, 2)}%)</li>
+    <li><strong>Óbitos:</strong> {br(kpi['total_obitos'])} · <strong>Graves:</strong> {br(kpi['total_graves'])}</li>
+    <li><strong>Em rodovias:</strong> {pct(kpi['perc_em_rodovia'])}% dos sinistros</li>
+  </ul>
+</section>
+</main>
+"""
+(DOCS / "index.html").write_text(html_page("Infosiga SP — Portal", portal_body), encoding="utf-8")
+
+# ============ DASHBOARD ============
+def section(titulo, chaves):
+    charts = "\n".join(f'<div class="chart">{fig_html(FIGS[k], f"chart_{k}")}</div>' for k in chaves)
+    return f"""<section><h2>{titulo}</h2><div class="chart-grid">{charts}</div></section>"""
+
+dash_body = f"""
+<header class="hero">
+  <h1>Dashboard Interativo — Infosiga SP</h1>
+  <p>Análise completa {anos_range} · {br(kpi['total_sinistros'])} sinistros · {br(kpi['total_obitos'])} óbitos</p>
+</header>
+<main>
+{kpi_html}
+{section('<i class="fa-solid fa-thumbtack"></i> Visão Geral', ["sinistros_ano","obitos_ano","vitimas_gravidade_ano","modal","tipos_sinistro","tipos_gravidade"])}
+{section('<i class="fa-solid fa-people-group"></i> Análise de Vítimas & Demografia', ["gravidade_lesao","sexo","faixa_etaria","tipo_vitima","obitos_trend","obitos_tipo"])}
+{section('<i class="fa-solid fa-clock"></i> Séries Temporais & Sazonalidade', ["ts_mensal","heat_sazonalidade","dia_semana","fatais_dia_semana","turno","hora"])}
+{section('<i class="fa-solid fa-map-location-dot"></i> Análise Geográfica (agregada)', ["regiao","regiao_obitos","municipios_obitos","tipo_via","administracao"])}
+{section('<i class="fa-solid fa-puzzle-piece"></i> Padrões & Correlações', ["heat_dia_turno","letalidade_hora","letalidade_ano","tempo_obito"])}
+</main>
+"""
+(DOCS / "dashboard_principal.html").write_text(html_page("Dashboard Infosiga SP", dash_body), encoding="utf-8")
+
+# ============ RELATÓRIO EXECUTIVO ============
+# Rankings em tabelas
+def records_to_table(records, cols, headers, round_cols=None):
+    round_cols = round_cols or {}
+    rows = []
+    for r_ in records:
+        cells = []
+        for c in cols:
+            v = r_.get(c)
+            if v is None:
+                cells.append("—")
+            elif c in round_cols:
+                try: cells.append(f"{float(v):,.{round_cols[c]}f}".replace(",", "X").replace(".", ",").replace("X", "."))
+                except: cells.append(str(v))
+            elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                cells.append(f"{v:,.0f}".replace(",", "."))
+            else:
+                cells.append(str(v))
+        rows.append("<tr>" + "".join(f"<td>{c}</td>" for c in cells) + "</tr>")
+    head = "<tr>" + "".join(f"<th>{h}</th>" for h in headers) + "</tr>"
+    return f"<table class='tbl'><thead>{head}</thead><tbody>{''.join(rows)}</tbody></table>"
+
+ano_max = int(ag_ano["ano_sinistro"].max())
+ano_prev = ano_max - 1
+sin_now = int(ag_ano[ag_ano["ano_sinistro"] == ano_max]["sinistros"].iloc[0])
+sin_prev = int(ag_ano[ag_ano["ano_sinistro"] == ano_prev]["sinistros"].iloc[0])
+var_sin = (sin_now - sin_prev) / sin_prev * 100 if sin_prev else 0
+obi_now = int(ag_ano[ag_ano["ano_sinistro"] == ano_max]["vitimas_fatais"].iloc[0])
+obi_prev = int(ag_ano[ag_ano["ano_sinistro"] == ano_prev]["vitimas_fatais"].iloc[0])
+var_obi = (obi_now - obi_prev) / obi_prev * 100 if obi_prev else 0
+
+pior_rod = rod["top10_obitos"][0]
+pior_trc = trc["top10_obitos"][0]
+
+rel_body = f"""
+<header class="hero">
+  <h1>Relatório Executivo — Infosiga SP</h1>
+  <p>Análise Exploratória de Sinistros Rodoviários · Estado de SP · {anos_range}</p>
+</header>
+<main>
+
+<section>
+  <h2>Resumo Executivo</h2>
+  {kpi_html}
+  <p>O presente relatório consolida a análise exploratória da base <strong>Infosiga SP</strong>, abrangendo
+  {br(kpi['total_sinistros'])} sinistros registrados entre {kpi['ano_min']} e {kpi['ano_max']},
+  {br(kpi['total_pessoas'])} pessoas envolvidas e {br(kpi['total_obitos'])} óbitos computados pelo sistema.
+  A base foi cruzada espacialmente com a <strong>Malha Rodoviária Estadual do DER/SP</strong> (4.782 trechos),
+  permitindo ranquear rodovias e subtrechos segundo diferentes indicadores de risco.</p>
+
+  <div class="alert-box">
+  <strong>Ressalvas metodológicas:</strong>
+  <ul>
+    <li>A base Infosiga agrega notificações de múltiplas fontes (Polícia Militar, Polícia Civil, PRF, DER, ARTESP e SAMU/Seade); os dados dos últimos 90 dias são preliminares.</li>
+    <li>{kpi['perc_com_coord']:.1f}% dos sinistros possuem coordenadas válidas; a análise geográfica por rodovia considera apenas os eventos associados a um trecho da Malha DER até 300 m de distância.</li>
+    <li>A classificação “em rodovia” utiliza os campos <code>tipo_via</code> e <code>administracao</code>; sinistros marcados como “NÃO DISPONÍVEL” foram tratados de forma conservadora.</li>
+    <li>Os totais de óbitos podem divergir do painel público do Infosiga em função do critério temporal adotado (data do sinistro x data do óbito, até 30 dias).</li>
+  </ul>
+  </div>
+</section>
+
+<section>
+  <h2>Tendências Anuais</h2>
+  <div class="chart">{fig_html(FIGS["sinistros_ano"], "rel_sin_ano")}</div>
+  <div class="chart">{fig_html(FIGS["obitos_ano"], "rel_obi_ano")}</div>
+  <div class="insight">
+    <strong>Variação {ano_prev} → {ano_max}:</strong>
+    Sinistros: {var_sin:+.1f}% &nbsp; · &nbsp; Óbitos: {var_obi:+.1f}%.
+    Observação: o ano mais recente pode incluir dados parciais.
+  </div>
+</section>
+
+<section>
+  <h2>Perfil das Vítimas</h2>
+  <div class="chart-grid">
+    <div class="chart">{fig_html(FIGS["gravidade_lesao"], "rel_grav")}</div>
+    <div class="chart">{fig_html(FIGS["tipo_vitima"], "rel_tv")}</div>
+    <div class="chart">{fig_html(FIGS["faixa_etaria"], "rel_fx")}</div>
+    <div class="chart">{fig_html(FIGS["obitos_tipo"], "rel_obtv")}</div>
+  </div>
+  <div class="insight"><strong>Destaques:</strong> motociclistas e pedestres concentram as maiores parcelas
+  de óbitos, reafirmando o padrão de vulnerabilidade dos “usuários desprotegidos da via” (Plano Vida no
+  Trânsito / Infosiga).</div>
+</section>
+
+<section>
+  <h2>Padrões Temporais</h2>
+  <div class="chart-grid">
+    <div class="chart">{fig_html(FIGS["heat_sazonalidade"], "rel_haz")}</div>
+    <div class="chart">{fig_html(FIGS["heat_dia_turno"], "rel_hdt")}</div>
+    <div class="chart">{fig_html(FIGS["hora"], "rel_hora")}</div>
+    <div class="chart">{fig_html(FIGS["letalidade_hora"], "rel_leth")}</div>
+  </div>
+  <div class="insight"><strong>Letalidade horária:</strong> embora o volume de sinistros se concentre no
+  período comercial e no fim de tarde, o índice de letalidade (percentual de sinistros com óbito) é
+  sistematicamente maior na madrugada, compatível com velocidades médias mais altas, fadiga e maior
+  presença de álcool.</div>
+</section>
+
+<section>
+  <h2>Rodovias Críticas (DER/SP)</h2>
+  <p>Cruzamento de <strong>{br(kpi['total_sinistros'])}</strong> sinistros com a <strong>Malha DER/SP</strong> —
+  {len(rod['all'])} rodovias estaduais com eventos associados.</p>
+
+  <h3>Top 10 por óbitos</h3>
+  {records_to_table(rod["top10_obitos"], ["Rodovia","sinistros","obitos","graves","km_total","sinistros_por_km","indice_letalidade"],
+                    ["Rodovia","Sinistros","Óbitos","Graves","Extensão (km)","Sinistros/km","Letalidade %"],
+                    round_cols={"km_total":1,"sinistros_por_km":2,"indice_letalidade":2})}
+
+  <h3>Top 10 por densidade (sinistros/km — mín. 20 km)</h3>
+  {records_to_table(rod["top10_densidade"], ["Rodovia","sinistros","km_total","sinistros_por_km","obitos"],
+                    ["Rodovia","Sinistros","Extensão (km)","Sinistros/km","Óbitos"],
+                    round_cols={"km_total":1,"sinistros_por_km":2})}
+
+  <div class="danger"><strong>Rodovia crítica:</strong> {pior_rod['Rodovia']} com
+  {br(pior_rod['obitos'])} óbitos acumulados no período.</div>
+
+  <h3>Top 10 trechos por óbitos</h3>
+  {records_to_table(trc["top10_obitos"], ["Rodovia","trecho_id","Extensao","sinistros","obitos","obitos_por_km"],
+                    ["Rodovia","Subtrecho (DER)","Ext. (km)","Sinistros","Óbitos","Óbitos/km"],
+                    round_cols={"Extensao":2,"obitos_por_km":3})}
+  <div class="danger"><strong>Trecho mais letal:</strong> {pior_trc['trecho_id']} —
+  {br(pior_trc['obitos'])} óbitos em {float(pior_trc.get('Extensao',0)):.2f} km.</div>
+</section>
+
+<section>
+  <h2>Recomendações</h2>
+  <ul>
+    <li>Priorizar fiscalização ostensiva e engenharia viária nos <strong>dez trechos mais letais</strong>; pontos de concentração espacial oferecem melhor relação custo-benefício do que medidas genéricas.</li>
+    <li>Intensificar operações nas faixas horárias de maior letalidade (madrugada) e nos meses com pico sazonal (ver mapa de calor).</li>
+    <li>Implementar ações de proteção a usuários vulneráveis (motociclistas, pedestres e ciclistas), responsáveis por parcela desproporcional dos óbitos.</li>
+    <li>Revisar trechos com densidade anômala (sinistros/km acima da média), mesmo quando o volume absoluto for moderado.</li>
+    <li>Aprimorar a geolocalização dos registros (atualmente em {kpi['perc_com_coord']:.1f}%) para viabilizar análises em nível de micropontos, alinhadas ao Infomapa do Infosiga.</li>
+  </ul>
+</section>
+</main>
+"""
+(DOCS / "RELATORIO_EXECUTIVO.html").write_text(html_page("Relatório Executivo — Infosiga SP", rel_body), encoding="utf-8")
+
+# ============ ANÁLISE GEOGRÁFICA (dashboard interativo com Leaflet + Plotly) ============
+malha_obj = json.load(open(OUT / "malha_topN.geojson", encoding="utf-8"))
+road_names_geo = sorted({f_["properties"]["Rodovia"] for f_ in malha_obj["features"]})
+road_rows_geo = [r_ for r_ in rod["all"] if r_["Rodovia"] in road_names_geo]
+
+malha_geo = json.dumps(malha_obj, ensure_ascii=False)
+pontos_obitos = json.dumps(json.load(open(OUT / "pontos_obitos.geojson", encoding="utf-8")), ensure_ascii=False)
+pontos_sinistros = json.dumps(json.load(open(OUT / "pontos_sinistros_amostra.geojson", encoding="utf-8")), ensure_ascii=False)
+pontos_tipos = json.dumps(json.load(open(OUT / "pontos_vitimas_amostra.geojson", encoding="utf-8")), ensure_ascii=False)
+heat_sinistros_js = json.dumps(json.load(open(OUT / "heat_points_sinistros.json", encoding="utf-8")), ensure_ascii=False)
+heat_obitos_js = json.dumps(json.load(open(OUT / "heat_points_obitos.json", encoding="utf-8")), ensure_ascii=False)
+ag_ano_js = json.dumps(ag_ano[["ano_sinistro", "sinistros", "vitimas_fatais"]].to_dict(orient="records"), ensure_ascii=False)
+ag_mes_js = json.dumps(ag_mes[["ano_sinistro", "mes_sinistro", "sinistros", "fatais"]].to_dict(orient="records"), ensure_ascii=False)
+year_options_html = "\n".join(f'<option value="{int(a)}">{int(a)}</option>' for a in ag_ano["ano_sinistro"].tolist())
+road_rows_js = json.dumps(road_rows_geo, ensure_ascii=False)
+road_year_rows_js = json.dumps(rod.get("all_by_year", []), ensure_ascii=False)
+road_year_type_rows_js = json.dumps(rod.get("all_by_year_type", []), ensure_ascii=False)
+seg_year_rows_js = json.dumps(trc.get("all_by_year", []), ensure_ascii=False)
+seg_type_rows_js = json.dumps(trc.get("all_by_type", []), ensure_ascii=False)
+seg_year_type_rows_js = json.dumps(trc.get("all_by_year_type", []), ensure_ascii=False)
+
+geo_head = """
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+"""
+
+geo_body = f"""
+<header class="hero">
+  <h1>Dashboard 1 — Análise por Rodovias</h1>
+  <p>Cruzamento Infosiga × Malha DER/SP · leitura por rodovia, tipo de evento e ano · com apoio da malha completa</p>
+</header>
+<main class="geo-main">
+<section class="filter-shell">
+  <h2>Filtros e interação</h2>
+  <p>Selecione uma rodovia, altere o indicador e clique no mapa ou nos gráficos para sincronizar todo o painel.</p>
+  <div class="filters">
+    <label>Rodovia
+      <select id="fltRoad">
+        <option value="ALL">Todas as rodovias do mapa</option>
+      </select>
+    </label>
+    <label>Tipo de evento
+      <select id="fltEventType">
+        <option value="ALL">Todos os eventos</option>
+        <option value="COLISAO">Colisão</option>
+        <option value="CHOQUE">Choque</option>
+        <option value="ATROPELAMENTO">Atropelamento</option>
+        <option value="OUTROS">Outros / não informado</option>
+      </select>
+    </label>
+    <label>Indicador
+      <select id="fltMetric">
+        <option value="sinistros">Sinistros</option>
+        <option value="obitos">Óbitos</option>
+        <option value="sinistros_por_km">Sinistros por km</option>
+        <option value="indice_letalidade">Letalidade (%)</option>
+      </select>
+    </label>
+    <label>Ordenação
+      <select id="fltOrder">
+        <option value="desc">Maiores valores</option>
+        <option value="asc">Menores valores</option>
+      </select>
+    </label>
+    <label>Ano em destaque
+      <select id="fltYear">
+        <option value="ALL">Período completo ({anos_range})</option>
+        {year_options_html}
+      </select>
+    </label>
+    <label>Top N exibido
+      <input id="fltTopN" type="range" min="4" max="12" step="1" value="8" />
+    </label>
+    <button id="btnReset" type="button">Limpar seleção</button>
+  </div>
+  <div class="checkline">
+    <span id="topNLabel" class="small-note">Exibindo Top 8 · As camadas do mapa são controladas na barra lateral à esquerda do Leaflet.</span>
+  </div>
+  <div class="layer-hint">
+    <span class="layer-chip">Período analisado: {anos_range}</span>
+    <span class="layer-chip">Mapa e ranking: acumulado do período</span>
+    <span class="layer-chip">Linha do tempo: leitura anual</span>
+  </div>
+  <div id="geo-kpis" class="kpis"></div>
+  <div class="geo-panel" style="margin-top:14px">
+    <h2><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
+    <div id="timelineChart" class="plot-host plot-timeline"></div>
+  </div>
+</section>
+
+<div class="geo-board">
+  <section class="geo-panel map-panel">
+    <h2><i class="fa-solid fa-map-location-dot"></i> Mapa DER com camadas</h2>
+    <p id="map-caption">Painel integrado: o mapa Leaflet e os quatro gráficos compartilham o mesmo contêiner analítico. Use o controle do mapa para trocar o plano de fundo e ativar ou desativar camadas.</p>
+    <div id="map"></div>
+    <div class="layer-hint">
+      <span class="layer-chip">Trechos DER por criticidade</span>
+      <span class="layer-chip">Eventos por tipo</span>
+      <span class="layer-chip">Pontos fatais</span>
+      <span class="layer-chip">Mapa de calor</span>
+    </div>
+    <div class="map-tip">No mesmo painel, o mapa fica à esquerda e os gráficos analíticos à direita, com resposta cruzada entre as seleções.</div>
+  </section>
+
+  <div class="geo-rail">
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
+      <div id="roadRankChart" class="plot-host"></div>
+    </section>
+
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
+      <div id="bubbleChart" class="plot-host"></div>
+    </section>
+
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
+      <div id="segmentChart" class="plot-host"></div>
+    </section>
+
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
+      <div id="compareChart" class="plot-host"></div>
+    </section>
+  </div>
+</div>
+</main>
+<script>
+const roadRowsAll = {road_rows_js};
+const roadRowsByYear = {road_year_rows_js};
+const roadRowsByYearType = {road_year_type_rows_js};
+const annualRows = {ag_ano_js};
+const monthlyRows = {ag_mes_js};
+const malha = {malha_geo};
+const obitosPts = {pontos_obitos};
+const sinistrosPts = {pontos_sinistros};
+const pontosTipos = {pontos_tipos};
+const heatSinistros = {heat_sinistros_js};
+const heatObitos = {heat_obitos_js};
+const segRowsAll = malha.features.map(f => ({{ ...f.properties }}));
+const segRowsByYear = {seg_year_rows_js};
+const segRowsByType = {seg_type_rows_js};
+const segRowsByYearType = {seg_year_type_rows_js};
+const state = {{
+  road: 'ALL', eventType: 'ALL', metric: 'sinistros', order: 'desc', topN: 8, year: 'ALL',
+  showObitosGroup: true, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
+  showSinistrosGroup: true, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
+  showHeatGroup: true, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
+  showMalhaGroup: true, showMalhaSP: true, showMalhaSPA: true, showMalhaSPI: true, showMalhaSPM: true
+}};
+const metricNames = {{
+  sinistros: 'Sinistros',
+  obitos: 'Óbitos',
+  sinistros_por_km: 'Sinistros/km',
+  indice_letalidade: 'Letalidade (%)'
+}};
+const eventTypeNames = {{
+  ALL: 'Todos os eventos',
+  COLISAO: 'Colisão',
+  CHOQUE: 'Choque',
+  ATROPELAMENTO: 'Atropelamento',
+  OUTROS: 'Outros'
+}};
+
+const fltRoad = document.getElementById('fltRoad');
+const fltEventType = document.getElementById('fltEventType');
+const fltMetric = document.getElementById('fltMetric');
+const fltOrder = document.getElementById('fltOrder');
+const fltYear = document.getElementById('fltYear');
+const fltTopN = document.getElementById('fltTopN');
+const topNLabel = document.getElementById('topNLabel');
+const kpiBox = document.getElementById('geo-kpis');
+const mapCaption = document.getElementById('map-caption');
+
+function fmt(n, casas=0) {{
+  return new Intl.NumberFormat('pt-BR', {{ minimumFractionDigits: casas, maximumFractionDigits: casas }}).format(Number(n || 0));
+}}
+
+function sortRows(rows, key) {{
+  return [...rows].sort((a, b) => state.order === 'desc' ? (Number(b[key]) || 0) - (Number(a[key]) || 0) : (Number(a[key]) || 0) - (Number(b[key]) || 0));
+}}
+
+function pickColor(value, maxValue) {{
+  const ratio = maxValue > 0 ? value / maxValue : 0;
+  if (ratio >= 0.8) return '#7f1d1d';
+  if (ratio >= 0.6) return '#b91c1c';
+  if (ratio >= 0.4) return '#dc2626';
+  if (ratio >= 0.2) return '#f97316';
+  return '#facc15';
+}}
+
+function severityClass(value, maxValue) {{
+  const ratio = maxValue > 0 ? value / maxValue : 0;
+  if (ratio >= 0.8) return {{ label: 'Crítico', color: '#7f1d1d' }};
+  if (ratio >= 0.6) return {{ label: 'Alto', color: '#b91c1c' }};
+  if (ratio >= 0.35) return {{ label: 'Moderado', color: '#f97316' }};
+  return {{ label: 'Baixo', color: '#facc15' }};
+}}
+
+function typeColor(kind) {{
+  const k = String(kind || '').toUpperCase();
+  if (k.includes('ATROPEL')) return '#7c3aed';
+  if (k.includes('CHOQUE')) return '#ea580c';
+  if (k.includes('COLISAO')) return '#0e4d92';
+  return '#475569';
+}}
+
+function sameType(row) {{
+  if (state.eventType === 'ALL') return true;
+  const kind = String(row.evento_tipo || row.tp_sinistro_primario || '').toUpperCase();
+  if (state.eventType === 'ATROPELAMENTO') return kind.includes('ATROPEL');
+  if (state.eventType === 'CHOQUE') return kind.includes('CHOQUE');
+  if (state.eventType === 'COLISAO') return kind.includes('COLISAO');
+  return !kind.includes('ATROPEL') && !kind.includes('CHOQUE') && !kind.includes('COLISAO');
+}}
+
+function currentRoadRows() {{
+  let base = roadRowsAll;
+  if (state.eventType !== 'ALL') {{
+    base = roadRowsByYearType.filter(r => sameType(r) && (state.year === 'ALL' || String(r.ano_sinistro) === String(state.year)));
+  }} else if (state.year !== 'ALL') {{
+    base = roadRowsByYear.filter(r => String(r.ano_sinistro) === String(state.year));
+  }}
+  return base.filter(r => state.road === 'ALL' || r.Rodovia === state.road);
+}}
+
+function currentSegRows() {{
+  let base = segRowsAll;
+  if (state.eventType !== 'ALL' && state.year !== 'ALL') {{
+    base = segRowsByYearType.filter(r => sameType(r) && String(r.ano_sinistro) === String(state.year));
+  }} else if (state.eventType !== 'ALL') {{
+    base = segRowsByType.filter(r => sameType(r));
+  }} else if (state.year !== 'ALL') {{
+    base = segRowsByYear.filter(r => String(r.ano_sinistro) === String(state.year));
+  }}
+  return base.filter(r => state.road === 'ALL' || r.Rodovia === state.road);
+}}
+
+function fillRoadOptions() {{
+  const roadLookup = Object.fromEntries(roadRowsAll.map(r => [r.Rodovia, r]));
+  const allRoads = [...new Set(malha.features.map(f => f.properties.Rodovia).filter(Boolean))].sort();
+  allRoads.forEach(name => {{
+    const r = roadLookup[name] || {{ Rodovia: name, sinistros: 0 }};
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = `${{name}} · ${{fmt(r.sinistros)}} sinistros`;
+    fltRoad.appendChild(opt);
+  }});
+}}
+
+function updateKpis(rows, segs) {{
+  const totalSin = rows.reduce((acc, r) => acc + Number(r.sinistros || 0), 0);
+  const totalObi = rows.reduce((acc, r) => acc + Number(r.obitos || 0), 0);
+  const mediaLet = rows.length ? rows.reduce((acc, r) => acc + Number(r.indice_letalidade || 0), 0) / rows.length : 0;
+  const trechoTxt = state.road === 'ALL' ? 'Trechos na malha' : 'Trechos da rodovia';
+  const periodoTxt = state.year === 'ALL' ? '{anos_range}' : state.year;
+  const tipoTxt = eventTypeNames[state.eventType] || 'Todos os eventos';
+  kpiBox.innerHTML = `
+    <div class="kpi ok"><div class="v">${{periodoTxt}}</div><div class="l">Recorte temporal</div></div>
+    <div class="kpi ok"><div class="v">${{tipoTxt}}</div><div class="l">Recorte temático</div></div>
+    <div class="kpi"><div class="v">${{fmt(rows.length)}}</div><div class="l">Rodovias exibidas</div></div>
+    <div class="kpi"><div class="v">${{fmt(totalSin)}}</div><div class="l">Sinistros</div></div>
+    <div class="kpi alert"><div class="v">${{fmt(totalObi)}}</div><div class="l">Óbitos</div></div>
+    <div class="kpi warn"><div class="v">${{fmt(mediaLet, 2)}}%</div><div class="l">Letalidade média</div></div>
+    <div class="kpi ok"><div class="v">${{fmt(segs.length)}}</div><div class="l">${{trechoTxt}}</div></div>`;
+  mapCaption.textContent = state.road === 'ALL'
+    ? `Visão espacial da malha completa do DER/SP. Tema: ${{tipoTxt}}. Período: ${{periodoTxt}}. Cada trecho é colorido pela classe do indicador selecionado.`
+    : `Rodovia selecionada: ${{state.road}}. Tema: ${{tipoTxt}}. Período: ${{periodoTxt}}. Cada trecho da rodovia recebe a classe correspondente ao filtro atual.`;
+}}
+
+const mapa = L.map('map', {{ zoomControl: true }}).setView([-22.5, -48.5], 7);
+const baseLight = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{ attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }}).addTo(mapa);
+mapa.attributionControl.setPrefix(false);
+['paneMalha','paneHeat','paneSinPts','paneSinMicro','paneObPts','paneObMicro'].forEach(name => mapa.createPane(name));
+mapa.getPane('paneMalha').style.zIndex = 320;
+mapa.getPane('paneHeat').style.zIndex = 420;
+mapa.getPane('paneSinPts').style.zIndex = 520;
+mapa.getPane('paneSinMicro').style.zIndex = 530;
+mapa.getPane('paneObPts').style.zIndex = 620;
+mapa.getPane('paneObMicro').style.zIndex = 630;
+
+let roadLayer = null;
+const overlayGroups = {{
+  malhaSP: L.layerGroup().addTo(mapa),
+  malhaSPA: L.layerGroup().addTo(mapa),
+  malhaSPI: L.layerGroup().addTo(mapa),
+  malhaSPM: L.layerGroup().addTo(mapa),
+  heatSinistros: L.layerGroup().addTo(mapa),
+  heatObitos: L.layerGroup().addTo(mapa),
+  sinistrosPoints: L.layerGroup().addTo(mapa),
+  sinistrosMicros: L.layerGroup().addTo(mapa),
+  obitosPoints: L.layerGroup().addTo(mapa),
+  obitosMicros: L.layerGroup().addTo(mapa)
+}};
+const legendHtmlMap = {{
+  obitosPoints: '<b>Legenda — Óbitos (pontos)</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#b91c1c;font-weight:800">◆</span> Choque<br><span style="color:#b91c1c;font-weight:800">▲</span> Atropelamento<br><span style="color:#b91c1c;font-weight:800">■</span> Outros',
+  obitosMicros: '<b>Legenda — Óbitos (micropontos)</b><br><span style="color:#b91c1c;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo',
+  sinistrosPoints: '<b>Legenda — Sinistros (pontos)</b><br><span style="color:#0b3a70;font-weight:800">●</span> Colisão<br><span style="color:#0b3a70;font-weight:800">◆</span> Choque<br><span style="color:#0b3a70;font-weight:800">▲</span> Atropelamento<br><span style="color:#0b3a70;font-weight:800">■</span> Outros',
+  sinistrosMicros: '<b>Legenda — Sinistros (micropontos)</b><br><span style="color:#0b3a70;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo',
+  heatObitos: '<b>Legenda — Mapa de calor de óbitos</b><br><span class="sw" style="background:#fee2e2"></span> Baixo<br><span class="sw" style="background:#ef4444"></span> Médio<br><span class="sw" style="background:#7f1d1d"></span> Alto',
+  heatSinistros: '<b>Legenda — Mapa de calor de sinistros</b><br><span class="sw" style="background:#dbeafe"></span> Baixo<br><span class="sw" style="background:#2563eb"></span> Médio<br><span class="sw" style="background:#0b3a70"></span> Alto',
+  malhaSP: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
+  malhaSPA: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
+  malhaSPI: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
+  malhaSPM: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo'
+}};
+const legendPriority = ['obitosMicros','obitosPoints','sinistrosMicros','sinistrosPoints','heatObitos','heatSinistros','malhaSPM','malhaSPI','malhaSPA','malhaSP'];
+const legend = L.control({{ position: 'bottomright' }});
+legend.onAdd = () => {{
+  const d = L.DomUtil.create('div', 'legend-map');
+  d.innerHTML = '<b>Legenda dinâmica</b><br>Ative uma camada na barra lateral.';
+  legend._div = d;
+  return d;
+}};
+legend.addTo(mapa);
+
+const layerPanel = L.control({{ position: 'topleft' }});
+layerPanel.onAdd = () => {{
+  const div = L.DomUtil.create('div', 'layer-sidebar');
+  div.innerHTML = `
+    <h4>Camadas do mapa</h4>
+    <div class="layer-group">
+      <label class="master"><input id="grpObitos" type="checkbox" checked /> Óbitos</label>
+      <div class="layer-items">
+        <label><input id="lyObitosPoints" type="checkbox" checked /> Pontos</label>
+        <label><input id="lyObitosMicros" type="checkbox" /> Micropontos</label>
+        <label><input id="lyObitosYear" type="checkbox" checked /> Mostrar por ano do painel</label>
+      </div>
+    </div>
+    <div class="layer-group">
+      <label class="master"><input id="grpSinistros" type="checkbox" checked /> Sinistros</label>
+      <div class="layer-items">
+        <label><input id="lySinistrosPoints" type="checkbox" /> Pontos</label>
+        <label><input id="lySinistrosMicros" type="checkbox" checked /> Micropontos</label>
+        <label><input id="lySinistrosYear" type="checkbox" checked /> Mostrar por ano do painel</label>
+      </div>
+    </div>
+    <div class="layer-group">
+      <label class="master"><input id="grpHeat" type="checkbox" checked /> Mapas de calor</label>
+      <div class="layer-items">
+        <label><input id="lyHeatObitos" type="checkbox" /> Óbitos</label>
+        <label><input id="lyHeatSinistros" type="checkbox" checked /> Sinistros</label>
+        <label><input id="lyHeatYear" type="checkbox" checked /> Mostrar por ano do painel</label>
+      </div>
+    </div>
+    <div class="layer-group">
+      <label class="master"><input id="grpMalha" type="checkbox" checked /> Malha rodoviária estadual</label>
+      <div class="layer-items">
+        <label><input id="lyMalhaSP" type="checkbox" checked /> SP</label>
+        <label><input id="lyMalhaSPA" type="checkbox" checked /> SPA</label>
+        <label><input id="lyMalhaSPI" type="checkbox" checked /> SPI</label>
+        <label><input id="lyMalhaSPM" type="checkbox" checked /> SPM</label>
+      </div>
+    </div>`;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+}};
+layerPanel.addTo(mapa);
+
+function setLayerVisible(group, visible) {{
+  if (visible) {{ if (!mapa.hasLayer(group)) group.addTo(mapa); }}
+  else if (mapa.hasLayer(group)) group.remove();
+}}
+function symbolForType(kind) {{
+  const k = String(kind || '').toUpperCase();
+  if (k.includes('ATROPEL')) return '▲';
+  if (k.includes('CHOQUE')) return '◆';
+  if (k.includes('COLISAO')) return '●';
+  return '■';
+}}
+function pointMarker(latlng, kind, color, micro=false) {{
+  return L.marker(latlng, {{
+    pane: micro ? (color === '#b91c1c' ? 'paneObMicro' : 'paneSinMicro') : (color === '#b91c1c' ? 'paneObPts' : 'paneSinPts'),
+    icon: L.divIcon({{
+      className: `sym-marker ${{micro ? 'micro' : 'point'}}`,
+      html: `<span style="color:${{color}}">${{symbolForType(kind)}}</span>`,
+      iconSize: micro ? [12, 12] : [16, 16],
+      iconAnchor: micro ? [6, 6] : [8, 8]
+    }})
+  }});
+}}
+function pointPopup(ft, title) {{
+  return `<b>${{title}}</b><br>` +
+    `Ano: ${{ft.properties.ano_sinistro || '-'}}<br>` +
+    `Rodovia: ${{ft.properties.Rodovia || '-'}}<br>` +
+    `Município: ${{ft.properties.municipio || '-'}}<br>` +
+    `Tipo: ${{ft.properties.tp_sinistro_primario || ft.properties.evento_tipo || '-'}}`;
+}}
+function bindLayerPanel() {{
+  const fields = {{
+    grpObitos: 'showObitosGroup', lyObitosPoints: 'showObitosPoints', lyObitosMicros: 'showObitosMicros', lyObitosYear: 'obitosUseYear',
+    grpSinistros: 'showSinistrosGroup', lySinistrosPoints: 'showSinistrosPoints', lySinistrosMicros: 'showSinistrosMicros', lySinistrosYear: 'sinistrosUseYear',
+    grpHeat: 'showHeatGroup', lyHeatObitos: 'showHeatObitos', lyHeatSinistros: 'showHeatSinistros', lyHeatYear: 'heatUseYear',
+    grpMalha: 'showMalhaGroup', lyMalhaSP: 'showMalhaSP', lyMalhaSPA: 'showMalhaSPA', lyMalhaSPI: 'showMalhaSPI', lyMalhaSPM: 'showMalhaSPM'
+  }};
+  Object.entries(fields).forEach(([id, key]) => {{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = !!state[key];
+    el.addEventListener('change', () => {{
+      state[key] = el.checked;
+      renderAll();
+    }});
+  }});
+}}
+bindLayerPanel();
+function activeLegendId() {{
+  const visible = [];
+  if (state.showMalhaGroup && state.showMalhaSP) visible.push('malhaSP');
+  if (state.showMalhaGroup && state.showMalhaSPA) visible.push('malhaSPA');
+  if (state.showMalhaGroup && state.showMalhaSPI) visible.push('malhaSPI');
+  if (state.showMalhaGroup && state.showMalhaSPM) visible.push('malhaSPM');
+  if (state.showHeatGroup && state.showHeatSinistros) visible.push('heatSinistros');
+  if (state.showHeatGroup && state.showHeatObitos) visible.push('heatObitos');
+  if (state.showSinistrosGroup && state.showSinistrosPoints) visible.push('sinistrosPoints');
+  if (state.showSinistrosGroup && state.showSinistrosMicros) visible.push('sinistrosMicros');
+  if (state.showObitosGroup && state.showObitosPoints) visible.push('obitosPoints');
+  if (state.showObitosGroup && state.showObitosMicros) visible.push('obitosMicros');
+  return legendPriority.find(id => visible.includes(id));
+}}
+function updateLegend() {{
+  const id = activeLegendId();
+  legend._div.innerHTML = legendHtmlMap[id] || '<b>Legenda dinâmica</b><br>Ative uma camada na barra lateral.';
+}}
+
+function drawMap(rows, segs) {{
+  const maxMetric = Math.max(...segs.map(r => Number(r[state.metric] || 0)), 1);
+  const segLookup = Object.fromEntries(segs.map(r => [r.trecho_id || r.Subtrecho, r]));
+  const selectedYear = state.year === 'ALL' ? null : Number(state.year);
+  const emptyRow = {{ sinistros: 0, obitos: 0, graves: 0, sinistros_por_km: 0, obitos_por_km: 0, indice_letalidade: 0 }};
+  const featureCollection = {{
+    type: 'FeatureCollection',
+    features: malha.features.filter(f => state.road === 'ALL' || f.properties.Rodovia === state.road)
+  }};
+  Object.values(overlayGroups).forEach(g => g.clearLayers());
+
+  const visibleBounds = L.featureGroup();
+  const addMalhaCategoria = (cat, group, enabled) => {{
+    setLayerVisible(group, state.showMalhaGroup && enabled);
+    if (!(state.showMalhaGroup && enabled)) return;
+    const lyr = L.geoJSON({{
+      type: 'FeatureCollection',
+      features: featureCollection.features.filter(f => f.properties.categoria_der === cat)
+    }}, {{
+      pane: 'paneMalha',
+      style: f => {{
+        const key = f.properties.trecho_id || f.properties.Subtrecho;
+        const row = segLookup[key] || ((state.year === 'ALL' && state.eventType === 'ALL') ? f.properties : emptyRow);
+        const value = Number(row[state.metric] || 0);
+        const sev = severityClass(value, maxMetric);
+        return {{ color: sev.color, weight: Math.max(2, Math.min(9, 2 + (value / maxMetric) * 7)), opacity: 0.95 }};
+      }},
+      onEachFeature: (f, l) => {{
+        const key = f.properties.trecho_id || f.properties.Subtrecho;
+        const row = segLookup[key] || emptyRow;
+        const value = Number(row[state.metric] || 0);
+        const sev = severityClass(value, maxMetric);
+        l.bindPopup(`<b>${{f.properties.Rodovia}}</b><br>Categoria DER: ${{f.properties.categoria_der}}<br>Subtrecho: ${{f.properties.Subtrecho}}<br>Classificação: <b>${{sev.label}}</b><br>Valor: ${{state.metric.includes('km') || state.metric.includes('indice') ? fmt(value, 2) : fmt(value)}}`);
+        l.on('click', () => {{ state.road = f.properties.Rodovia; fltRoad.value = state.road; renderAll(); }});
+      }}
+    }}).addTo(group);
+    visibleBounds.addLayer(lyr);
+  }};
+  addMalhaCategoria('SP', overlayGroups.malhaSP, state.showMalhaSP);
+  addMalhaCategoria('SPA', overlayGroups.malhaSPA, state.showMalhaSPA);
+  addMalhaCategoria('SPI', overlayGroups.malhaSPI, state.showMalhaSPI);
+  addMalhaCategoria('SPM', overlayGroups.malhaSPM, state.showMalhaSPM);
+
+  roadLayer = visibleBounds;
+  if (visibleBounds.getBounds().isValid()) mapa.fitBounds(visibleBounds.getBounds(), {{ padding: [18, 18] }});
+  else mapa.setView([-22.5, -48.5], 7);
+  const bounds = visibleBounds.getBounds().isValid() ? visibleBounds.getBounds() : null;
+
+  const filterPoint = (ft, useYear) => {{
+    const coords = ft.geometry.coordinates;
+    const sameYear = !(useYear && selectedYear) || Number(ft.properties.ano_sinistro) === selectedYear;
+    const sameRoad = state.road === 'ALL' || ft.properties.Rodovia === state.road;
+    const sameTypeEvent = state.eventType === 'ALL' || sameType(ft.properties);
+    const sameArea = !bounds || state.road === 'ALL' || bounds.contains([coords[1], coords[0]]);
+    return sameYear && sameRoad && sameTypeEvent && sameArea;
+  }};
+
+  setLayerVisible(overlayGroups.obitosPoints, state.showObitosGroup && state.showObitosPoints);
+  if (state.showObitosGroup && state.showObitosPoints) {{
+    obitosPts.features.filter(ft => filterPoint(ft, state.obitosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', false)
+        .bindPopup(pointPopup(ft, 'Óbito'))
+        .addTo(overlayGroups.obitosPoints);
+    }});
+  }}
+  setLayerVisible(overlayGroups.obitosMicros, state.showObitosGroup && state.showObitosMicros);
+  if (state.showObitosGroup && state.showObitosMicros) {{
+    obitosPts.features.filter(ft => filterPoint(ft, state.obitosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', true)
+        .bindPopup(pointPopup(ft, 'Óbito'))
+        .addTo(overlayGroups.obitosMicros);
+    }});
+  }}
+  setLayerVisible(overlayGroups.sinistrosPoints, state.showSinistrosGroup && state.showSinistrosPoints);
+  if (state.showSinistrosGroup && state.showSinistrosPoints) {{
+    sinistrosPts.features.filter(ft => filterPoint(ft, state.sinistrosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', false)
+        .bindPopup(pointPopup(ft, 'Sinistro'))
+        .addTo(overlayGroups.sinistrosPoints);
+    }});
+  }}
+  setLayerVisible(overlayGroups.sinistrosMicros, state.showSinistrosGroup && state.showSinistrosMicros);
+  if (state.showSinistrosGroup && state.showSinistrosMicros) {{
+    sinistrosPts.features.filter(ft => filterPoint(ft, state.sinistrosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', true)
+        .bindPopup(pointPopup(ft, 'Sinistro'))
+        .addTo(overlayGroups.sinistrosMicros);
+    }});
+  }}
+  setLayerVisible(overlayGroups.heatSinistros, state.showHeatGroup && state.showHeatSinistros);
+  if (state.showHeatGroup && state.showHeatSinistros) {{
+    const pts = heatSinistros.points.filter(p => {{
+      const sameYear = !(state.heatUseYear && selectedYear) || Number(p[2]) === selectedYear;
+      return !bounds || state.road === 'ALL' || bounds.contains([p[0], p[1]]);
+    }});
+    L.heatLayer(pts.map(p => [p[0], p[1], 0.4]), {{ pane: 'paneHeat', radius: 10, blur: 12, maxZoom: 10, gradient: {{ 0.2:'#dbeafe',0.5:'#2563eb',1:'#0b3a70' }} }}).addTo(overlayGroups.heatSinistros);
+  }}
+  setLayerVisible(overlayGroups.heatObitos, state.showHeatGroup && state.showHeatObitos);
+  if (state.showHeatGroup && state.showHeatObitos) {{
+    const pts = heatObitos.points.filter(p => {{
+      const sameYear = !(state.heatUseYear && selectedYear) || Number(p[3]) === selectedYear;
+      return !bounds || state.road === 'ALL' || bounds.contains([p[0], p[1]]);
+    }});
+    L.heatLayer(pts.map(p => [p[0], p[1], 0.3 + (p[2] || 0) * 2]), {{ pane: 'paneHeat', radius: 10, blur: 12, maxZoom: 10, gradient: {{ 0.2:'#fee2e2',0.5:'#ef4444',1:'#7f1d1d' }} }}).addTo(overlayGroups.heatObitos);
+  }}
+  updateLegend();
+}}
+
+function currentPeriodLabel() {{
+  return state.year === 'ALL' ? '{anos_range}' : String(state.year);
+}}
+
+function chartLayout(title) {{
+  return {{
+    title: {{ text: title, x: 0.02 }},
+    paper_bgcolor: 'white',
+    plot_bgcolor: 'white',
+    font: {{ family: 'Inter, Segoe UI, sans-serif', size: 12, color: '#1f2937' }},
+    margin: {{ l: 70, r: 20, t: 54, b: 54 }},
+    height: 290,
+    legend: {{ orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' }}
+  }};
+}}
+
+function renderTimeSeries() {{
+  const selectedYear = state.year === 'ALL' ? null : Number(state.year);
+
+  if (selectedYear) {{
+    const months = monthlyRows
+      .filter(r => Number(r.ano_sinistro) === selectedYear)
+      .sort((a, b) => Number(a.mes_sinistro) - Number(b.mes_sinistro));
+    Plotly.react('timelineChart', [
+      {{
+        type: 'bar',
+        name: 'Sinistros',
+        x: months.map(r => String(r.mes_sinistro).padStart(2, '0')),
+        y: months.map(r => Number(r.sinistros || 0)),
+        marker: {{ color: '#0e4d92' }}
+      }},
+      {{
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: 'Eventos fatais',
+        x: months.map(r => String(r.mes_sinistro).padStart(2, '0')),
+        y: months.map(r => Number(r.fatais || 0)),
+        line: {{ color: '#d52b1e', width: 3 }}
+      }}
+    ], {{
+      ...chartLayout(`Leitura mensal do ano ${{selectedYear}}`),
+      height: 240,
+      barmode: 'overlay',
+      margin: {{ l: 50, r: 20, t: 54, b: 40 }}
+    }}, {{ responsive: true, displaylogo: false }});
+  }} else {{
+    const years = annualRows.map(r => Number(r.ano_sinistro));
+    const sinistros = annualRows.map(r => Number(r.sinistros || 0));
+    const obitos = annualRows.map(r => Number(r.vitimas_fatais || 0));
+    Plotly.react('timelineChart', [
+      {{
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: 'Sinistros',
+        x: years,
+        y: sinistros,
+        line: {{ color: '#0e4d92', width: 3 }},
+        marker: {{ size: 7, color: '#0e4d92' }}
+      }},
+      {{
+        type: 'scatter',
+        mode: 'lines+markers',
+        name: 'Óbitos',
+        x: years,
+        y: obitos,
+        line: {{ color: '#d52b1e', width: 3, dash: 'dot' }},
+        marker: {{ size: 7, color: '#d52b1e' }}
+      }}
+    ], {{
+      ...chartLayout(`Evolução anual do período {anos_range}`),
+      height: 240,
+      margin: {{ l: 50, r: 20, t: 54, b: 40 }},
+      xaxis: {{ title: '', tickmode: 'array', tickvals: years }},
+      yaxis: {{ title: '' }}
+    }}, {{ responsive: true, displaylogo: false }});
+  }}
+
+  const timeline = document.getElementById('timelineChart');
+  timeline.removeAllListeners?.('plotly_click');
+  timeline.on('plotly_click', ev => {{
+    const year = String(ev.points[0].x).slice(0, 4);
+    if (year && year !== 'NaN') {{
+      state.year = year;
+      fltYear.value = year;
+      renderAll();
+    }}
+  }});
+}}
+
+function renderRoadRank(rows) {{
+  const ranked = sortRows(rows, state.metric).slice(0, state.topN).reverse();
+  Plotly.react('roadRankChart', [{{
+    type: 'bar',
+    orientation: 'h',
+    x: ranked.map(r => r[state.metric]),
+    y: ranked.map(r => r.Rodovia),
+    text: ranked.map(r => state.metric.includes('km') || state.metric.includes('indice') ? fmt(r[state.metric], 2) : fmt(r[state.metric])),
+    textposition: 'outside',
+    cliponaxis: false,
+    marker: {{ color: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }}
+  }}], chartLayout(`Ranking de rodovias por ${{metricNames[state.metric]}} · ${{currentPeriodLabel()}}`), {{ responsive: true, displaylogo: false }});
+  const rankChart = document.getElementById('roadRankChart');
+  rankChart.removeAllListeners?.('plotly_click');
+  rankChart.on('plotly_click', ev => {{
+    state.road = ev.points[0].y;
+    fltRoad.value = state.road;
+    renderAll();
+  }});
+}}
+
+function renderBubble(rows) {{
+  const ranked = sortRows(rows, state.metric).slice(0, Math.min(6, rows.length));
+  Plotly.react('bubbleChart', [{{
+    type: 'pie',
+    hole: 0.58,
+    labels: ranked.map(r => r.Rodovia),
+    values: ranked.map(r => Number(r[state.metric] || 0)),
+    textinfo: 'percent',
+    textposition: 'inside',
+    marker: {{ colors: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }},
+    hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<br>Participação: %{{percent}}<extra></extra>'
+  }}], {{ ...chartLayout(`Participação por ${{metricNames[state.metric]}} · ${{currentPeriodLabel()}}`), margin: {{ l: 10, r: 10, t: 54, b: 10 }}, showlegend: true, legend: {{ orientation: 'v', x: 1.02, y: 0.5 }} }}, {{ responsive: true, displaylogo: false }});
+  const bubble = document.getElementById('bubbleChart');
+  bubble.removeAllListeners?.('plotly_click');
+  bubble.on('plotly_click', ev => {{
+    state.road = ev.points[0].label;
+    fltRoad.value = state.road;
+    renderAll();
+  }});
+}}
+
+function renderSegments(segs) {{
+  const ranked = sortRows(segs, state.metric).slice(0, state.topN).reverse();
+  Plotly.react('segmentChart', [{{
+    type: 'bar',
+    orientation: 'h',
+    x: ranked.map(r => r[state.metric]),
+    y: ranked.map(r => `${{r.Subtrecho}} · km ${{fmt(r.KmInicial, 2)}}–${{fmt(r.KmFinal, 2)}}`),
+    text: ranked.map(r => state.metric.includes('km') || state.metric.includes('indice') ? fmt(r[state.metric], 2) : fmt(r[state.metric])),
+    textposition: 'outside',
+    cliponaxis: false,
+    marker: {{ color: '#0e4d92' }}
+  }}], chartLayout(state.road === 'ALL' ? `Subtrechos em destaque no mapa · ${{currentPeriodLabel()}}` : `Subtrechos de ${{state.road}} · ${{currentPeriodLabel()}}`), {{ responsive: true, displaylogo: false }});
+}}
+
+function renderCompare(rows) {{
+  if (state.road !== 'ALL' && rows.length) {{
+    const r = rows[0];
+    const totalVisible = currentRoadRows().reduce((a, item) => a + Number(item[state.metric] || 0), 0);
+    const current = Number(r[state.metric] || 0);
+    const others = Math.max(0, totalVisible - current);
+    Plotly.react('compareChart', [{{
+      type: 'pie',
+      hole: 0.56,
+      labels: [state.road, 'Demais rodovias'],
+      values: [current, others],
+      textinfo: 'percent',
+      marker: {{ colors: ['#0e4d92', '#cbd5e1'] }},
+      hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<extra></extra>'
+    }}], {{ ...chartLayout(`Participação de ${{state.road}} · ${{currentPeriodLabel()}}`), margin: {{ l: 10, r: 10, t: 54, b: 10 }}, showlegend: true, legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }} }}, {{ responsive: true, displaylogo: false }});
+  }} else {{
+    const ranked = sortRows(rows, state.metric).slice(0, Math.min(5, rows.length));
+    const rankedSum = ranked.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
+    const totalAll = rows.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
+    const others = Math.max(0, totalAll - rankedSum);
+    const labels = ranked.map(r => r.Rodovia).concat(others > 0 ? ['Outras'] : []);
+    const values = ranked.map(r => Number(r[state.metric] || 0)).concat(others > 0 ? [others] : []);
+    Plotly.react('compareChart', [{{
+      type: 'pie',
+      hole: 0.56,
+      labels,
+      values,
+      textinfo: 'percent',
+      marker: {{ colors: ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed', '#cbd5e1'] }},
+      hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<extra></extra>'
+    }}], {{ ...chartLayout(`Participação consolidada do painel · ${{currentPeriodLabel()}}`), margin: {{ l: 10, r: 10, t: 54, b: 10 }}, showlegend: true, legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }} }}, {{ responsive: true, displaylogo: false }});
+  }}
+}}
+
+function renderAll() {{
+  state.eventType = fltEventType.value;
+  state.metric = fltMetric.value;
+  state.order = fltOrder.value;
+  state.year = fltYear.value;
+  state.topN = Number(fltTopN.value);
+  topNLabel.textContent = `Exibindo Top ${{state.topN}} · Camadas controladas na barra lateral do mapa`;
+
+  const rows = currentRoadRows();
+  const segs = currentSegRows();
+  updateKpis(rows, segs);
+  renderTimeSeries();
+  drawMap(rows, segs);
+  renderRoadRank(rows);
+  renderBubble(sortRows(rows, 'sinistros'));
+  renderSegments(segs);
+  renderCompare(rows);
+}}
+
+fltRoad.addEventListener('change', () => {{ state.road = fltRoad.value; renderAll(); }});
+fltEventType.addEventListener('change', renderAll);
+fltMetric.addEventListener('change', renderAll);
+fltOrder.addEventListener('change', renderAll);
+fltYear.addEventListener('change', renderAll);
+fltTopN.addEventListener('input', renderAll);
+document.getElementById('btnReset').addEventListener('click', () => {{
+  state.road = 'ALL';
+  fltRoad.value = 'ALL';
+  fltEventType.value = 'ALL';
+  fltMetric.value = 'sinistros';
+  fltOrder.value = 'desc';
+  fltYear.value = 'ALL';
+  fltTopN.value = '8';
+  renderAll();
+}});
+
+fillRoadOptions();
+renderAll();
+</script>
+"""
+
+(DOCS / "analise_geografica.html").write_text(
+    html_page("Dashboard 1 — Rodovias", geo_body, extra_head=geo_head),
+    encoding="utf-8"
+)
+
+# ============ DASHBOARD 2 — SUBTRECHOS ============
+focus_road_names = subtr.get("rodovias_foco", [])
+focus_road_set = set(focus_road_names)
+malha_focus_obj = {
+    "type": "FeatureCollection",
+    "features": [f_ for f_ in malha_obj["features"] if f_["properties"].get("Rodovia") in focus_road_set],
+}
+malha_focus_geo = json.dumps(malha_focus_obj, ensure_ascii=False)
+subtr_top_roads_js = json.dumps(subtr.get("top10_rodovias_por_tipo", {}), ensure_ascii=False)
+subtr_focus_rows_js = json.dumps(subtr.get("subtrechos_foco", []), ensure_ascii=False)
+subtr_focus_type_rows_js = json.dumps(subtr.get("subtrechos_foco_by_type", []), ensure_ascii=False)
+subtr_focus_year_type_rows_js = json.dumps(subtr.get("subtrechos_foco_by_year_type", []), ensure_ascii=False)
+
+sub_body = f"""
+<header class="hero">
+  <h1>Dashboard 2 — Análise Detalhada por Subtrechos</h1>
+  <p>Unidade espacial mínima: subtrecho DER/SP · foco nas top 10 rodovias de cada tipo de evento</p>
+</header>
+<main class="geo-main">
+<section class="filter-shell">
+  <h2>Filtros analíticos do subtrecho</h2>
+  <p>Este painel usa o subtrecho como menor unidade de análise e limita a leitura às top 10 rodovias de cada tipo de evento.</p>
+  <div class="filters">
+    <label>Tipo de evento
+      <select id="subEventType">
+        <option value="COLISAO">Colisão</option>
+        <option value="CHOQUE">Choque</option>
+        <option value="ATROPELAMENTO">Atropelamento</option>
+        <option value="OUTROS">Outros / não informado</option>
+      </select>
+    </label>
+    <label>Rodovia do recorte
+      <select id="subRoad"></select>
+    </label>
+    <label>Indicador
+      <select id="subMetric">
+        <option value="sinistros">Sinistros</option>
+        <option value="obitos">Óbitos</option>
+        <option value="sinistros_por_km">Sinistros por km</option>
+        <option value="indice_letalidade">Letalidade (%)</option>
+      </select>
+    </label>
+    <label>Ano em destaque
+      <select id="subYear">
+        <option value="ALL">Período completo ({anos_range})</option>
+        {year_options_html}
+      </select>
+    </label>
+    <button id="subReset" type="button">Limpar seleção</button>
+  </div>
+  <div id="sub-kpis" class="kpis"></div>
+</section>
+<div class="geo-board">
+  <section class="geo-panel map-panel">
+    <h2><i class="fa-solid fa-route"></i> Subtrechos classificados</h2>
+    <p id="sub-caption">Mapa focado apenas nas rodovias mais críticas de cada tipologia de evento.</p>
+    <div id="mapSub"></div>
+  </section>
+  <div class="geo-rail">
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-trophy"></i> Top rodovias do tipo</h2>
+      <div id="subRoadChart" class="plot-host"></div>
+    </section>
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-road-circle-exclamation"></i> Top subtrechos</h2>
+      <div id="subSegmentChart" class="plot-host"></div>
+    </section>
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-clock"></i> Evolução anual</h2>
+      <div id="subSeriesChart" class="plot-host"></div>
+    </section>
+    <section class="geo-panel">
+      <h2><i class="fa-solid fa-chart-pie"></i> Participação dos subtrechos</h2>
+      <div id="subShareChart" class="plot-host"></div>
+    </section>
+  </div>
+</div>
+</main>
+<script>
+const focusMalha = {malha_focus_geo};
+const topRoadsByType = {subtr_top_roads_js};
+const focusRowsAll = {subtr_focus_rows_js};
+const focusRowsByType = {subtr_focus_type_rows_js};
+const focusRowsByYearType = {subtr_focus_year_type_rows_js};
+const roadYearTypeRows = {road_year_type_rows_js};
+const obitosPts2 = {pontos_obitos};
+const sinistrosPts2 = {pontos_sinistros};
+const heatSinistros2 = {heat_sinistros_js};
+const heatObitos2 = {heat_obitos_js};
+const eventTypeNames2 = {{ COLISAO: 'Colisão', CHOQUE: 'Choque', ATROPELAMENTO: 'Atropelamento', OUTROS: 'Outros' }};
+const metricNames2 = {{ sinistros: 'Sinistros', obitos: 'Óbitos', sinistros_por_km: 'Sinistros/km', indice_letalidade: 'Letalidade (%)' }};
+const state2 = {{
+  eventType: 'COLISAO', road: 'ALL', metric: 'sinistros', year: 'ALL',
+  showObitosGroup: true, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
+  showSinistrosGroup: true, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
+  showHeatGroup: true, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
+  showMalhaGroup: true, showMalhaSP: true, showMalhaSPA: true, showMalhaSPI: true, showMalhaSPM: true
+}};
+
+const subEventType = document.getElementById('subEventType');
+const subRoad = document.getElementById('subRoad');
+const subMetric = document.getElementById('subMetric');
+const subYear = document.getElementById('subYear');
+const subKpis = document.getElementById('sub-kpis');
+const subCaption = document.getElementById('sub-caption');
+
+function fmt2(n, casas=0) {{
+  return new Intl.NumberFormat('pt-BR', {{ minimumFractionDigits: casas, maximumFractionDigits: casas }}).format(Number(n || 0));
+}}
+function pickColor2(value, maxValue) {{
+  const ratio = maxValue > 0 ? value / maxValue : 0;
+  if (ratio >= 0.8) return '#7f1d1d';
+  if (ratio >= 0.6) return '#b91c1c';
+  if (ratio >= 0.35) return '#f97316';
+  return '#facc15';
+}}
+function sameType2(row) {{
+  return String(row.evento_tipo || '').toUpperCase() === state2.eventType;
+}}
+function roadPool2() {{
+  return (topRoadsByType[state2.eventType] || []).map(r => r.Rodovia);
+}}
+function fillRoadOptions2() {{
+  const roads = roadPool2();
+  subRoad.innerHTML = '<option value="ALL">Todas as top 10 do tipo</option>';
+  roads.forEach(name => {{
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    subRoad.appendChild(opt);
+  }});
+  if (!roads.includes(state2.road)) {{
+    state2.road = 'ALL';
+    subRoad.value = 'ALL';
+  }}
+}}
+function currentRows2() {{
+  let base = state2.year === 'ALL'
+    ? focusRowsByType.filter(sameType2)
+    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year));
+  base = base.filter(r => roadPool2().includes(r.Rodovia));
+  if (state2.road !== 'ALL') base = base.filter(r => r.Rodovia === state2.road);
+  return base;
+}}
+function roadRanking2() {{
+  const pool = roadPool2();
+  let rows = state2.year === 'ALL'
+    ? (topRoadsByType[state2.eventType] || [])
+    : roadYearTypeRows.filter(r => String(r.evento_tipo || '').toUpperCase() === state2.eventType && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
+  if (state2.road !== 'ALL') rows = rows.filter(r => r.Rodovia === state2.road);
+  return [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0));
+}}
+function seriesRows2() {{
+  const pool = roadPool2();
+  let rows = roadYearTypeRows.filter(r => String(r.evento_tipo || '').toUpperCase() === state2.eventType && pool.includes(r.Rodovia));
+  if (state2.road !== 'ALL') rows = rows.filter(r => r.Rodovia === state2.road);
+  const byYear = {{}};
+  rows.forEach(r => {{
+    const y = String(r.ano_sinistro);
+    if (!byYear[y]) byYear[y] = {{ ano_sinistro: y, sinistros: 0, obitos: 0, sinistros_por_km: 0, indice_letalidade: 0, n: 0 }};
+    byYear[y].sinistros += Number(r.sinistros || 0);
+    byYear[y].obitos += Number(r.obitos || 0);
+    byYear[y].sinistros_por_km += Number(r.sinistros_por_km || 0);
+    byYear[y].indice_letalidade += Number(r.indice_letalidade || 0);
+    byYear[y].n += 1;
+  }});
+  return Object.values(byYear).sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro)).map(r => ({{
+    ...r,
+    sinistros_por_km: r.n ? r.sinistros_por_km / r.n : 0,
+    indice_letalidade: r.n ? r.indice_letalidade / r.n : 0,
+  }}));
+}}
+function updateKpis2(rows, roads) {{
+  const totalSin = rows.reduce((a, r) => a + Number(r.sinistros || 0), 0);
+  const totalObi = rows.reduce((a, r) => a + Number(r.obitos || 0), 0);
+  subKpis.innerHTML = `
+    <div class="kpi ok"><div class="v">Subtrecho</div><div class="l">Unidade mínima</div></div>
+    <div class="kpi"><div class="v">${{fmt2(roads.length)}}</div><div class="l">Rodovias foco</div></div>
+    <div class="kpi"><div class="v">${{fmt2(rows.length)}}</div><div class="l">Subtrechos no recorte</div></div>
+    <div class="kpi"><div class="v">${{fmt2(totalSin)}}</div><div class="l">Sinistros</div></div>
+    <div class="kpi alert"><div class="v">${{fmt2(totalObi)}}</div><div class="l">Óbitos</div></div>`;
+  subCaption.textContent = `Tipo: ${{eventTypeNames2[state2.eventType]}} · Ano: ${{state2.year === 'ALL' ? '{anos_range}' : state2.year}} · Recorte: ${{state2.road === 'ALL' ? 'top 10 rodovias do tipo' : state2.road}}`;
+}}
+function layout2(title) {{
+  return {{
+    title: {{ text: title, x: 0.02 }},
+    paper_bgcolor: 'white',
+    plot_bgcolor: 'white',
+    font: {{ family: 'Inter, Segoe UI, sans-serif', size: 12, color: '#1f2937' }},
+    margin: {{ l: 70, r: 20, t: 54, b: 54 }},
+    height: 290,
+    legend: {{ orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' }}
+  }};
+}}
+const mapSub = L.map('mapSub', {{ zoomControl: true }}).setView([-22.5, -48.5], 7);
+L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{ attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }}).addTo(mapSub);
+mapSub.attributionControl.setPrefix(false);
+['paneMalha2','paneHeat2','paneSinPts2','paneSinMicro2','paneObPts2','paneObMicro2'].forEach(name => mapSub.createPane(name));
+mapSub.getPane('paneMalha2').style.zIndex = 320;
+mapSub.getPane('paneHeat2').style.zIndex = 420;
+mapSub.getPane('paneSinPts2').style.zIndex = 520;
+mapSub.getPane('paneSinMicro2').style.zIndex = 530;
+mapSub.getPane('paneObPts2').style.zIndex = 620;
+mapSub.getPane('paneObMicro2').style.zIndex = 630;
+let focusLayer = null;
+const overlayGroups2 = {{
+  malhaSP: L.layerGroup().addTo(mapSub),
+  malhaSPA: L.layerGroup().addTo(mapSub),
+  malhaSPI: L.layerGroup().addTo(mapSub),
+  malhaSPM: L.layerGroup().addTo(mapSub),
+  heatSinistros: L.layerGroup().addTo(mapSub),
+  heatObitos: L.layerGroup().addTo(mapSub),
+  sinistrosPoints: L.layerGroup().addTo(mapSub),
+  sinistrosMicros: L.layerGroup().addTo(mapSub),
+  obitosPoints: L.layerGroup().addTo(mapSub),
+  obitosMicros: L.layerGroup().addTo(mapSub)
+}};
+const legend2 = L.control({{ position: 'bottomright' }});
+legend2.onAdd = () => {{
+  const d = L.DomUtil.create('div', 'legend-map');
+  legend2._div = d;
+  d.innerHTML = '<b>Legenda dinâmica</b><br>Ative uma camada na barra lateral.';
+  return d;
+}};
+legend2.addTo(mapSub);
+const layerPanel2 = L.control({{ position: 'topleft' }});
+layerPanel2.onAdd = () => {{
+  const div = L.DomUtil.create('div', 'layer-sidebar');
+  div.innerHTML = `
+    <h4>Camadas do mapa</h4>
+    <div class="layer-group">
+      <label class="master"><input id="grpObitos2" type="checkbox" checked /> Óbitos</label>
+      <div class="layer-items">
+        <label><input id="lyObitosPoints2" type="checkbox" checked /> Pontos</label>
+        <label><input id="lyObitosMicros2" type="checkbox" /> Micropontos</label>
+        <label><input id="lyObitosYear2" type="checkbox" checked /> Mostrar por ano do painel</label>
+      </div>
+    </div>
+    <div class="layer-group">
+      <label class="master"><input id="grpSinistros2" type="checkbox" checked /> Sinistros</label>
+      <div class="layer-items">
+        <label><input id="lySinistrosPoints2" type="checkbox" /> Pontos</label>
+        <label><input id="lySinistrosMicros2" type="checkbox" checked /> Micropontos</label>
+        <label><input id="lySinistrosYear2" type="checkbox" checked /> Mostrar por ano do painel</label>
+      </div>
+    </div>
+    <div class="layer-group">
+      <label class="master"><input id="grpHeat2" type="checkbox" checked /> Mapas de calor</label>
+      <div class="layer-items">
+        <label><input id="lyHeatObitos2" type="checkbox" /> Óbitos</label>
+        <label><input id="lyHeatSinistros2" type="checkbox" checked /> Sinistros</label>
+        <label><input id="lyHeatYear2" type="checkbox" checked /> Mostrar por ano do painel</label>
+      </div>
+    </div>
+    <div class="layer-group">
+      <label class="master"><input id="grpMalha2" type="checkbox" checked /> Malha rodoviária estadual</label>
+      <div class="layer-items">
+        <label><input id="lyMalhaSP2" type="checkbox" checked /> SP</label>
+        <label><input id="lyMalhaSPA2" type="checkbox" checked /> SPA</label>
+        <label><input id="lyMalhaSPI2" type="checkbox" checked /> SPI</label>
+        <label><input id="lyMalhaSPM2" type="checkbox" checked /> SPM</label>
+      </div>
+    </div>`;
+  L.DomEvent.disableClickPropagation(div);
+  return div;
+}};
+layerPanel2.addTo(mapSub);
+function setLayerVisible2(group, visible) {{
+  if (visible) {{ if (!mapSub.hasLayer(group)) group.addTo(mapSub); }}
+  else if (mapSub.hasLayer(group)) group.remove();
+}}
+function symbolForType2(kind) {{
+  const k = String(kind || '').toUpperCase();
+  if (k.includes('ATROPEL')) return '▲';
+  if (k.includes('CHOQUE')) return '◆';
+  if (k.includes('COLISAO')) return '●';
+  return '■';
+}}
+function pointMarker2(latlng, kind, color, micro=false) {{
+  return L.marker(latlng, {{
+    pane: micro ? (color === '#b91c1c' ? 'paneObMicro2' : 'paneSinMicro2') : (color === '#b91c1c' ? 'paneObPts2' : 'paneSinPts2'),
+    icon: L.divIcon({{
+      className: `sym-marker ${{micro ? 'micro' : 'point'}}`,
+      html: `<span style="color:${{color}}">${{symbolForType2(kind)}}</span>`,
+      iconSize: micro ? [12, 12] : [16, 16],
+      iconAnchor: micro ? [6, 6] : [8, 8]
+    }})
+  }});
+}}
+function pointPopup2(ft, title) {{
+  return `<b>${{title}}</b><br>` +
+    `Ano: ${{ft.properties.ano_sinistro || '-'}}<br>` +
+    `Rodovia: ${{ft.properties.Rodovia || '-'}}<br>` +
+    `Município: ${{ft.properties.municipio || '-'}}<br>` +
+    `Tipo: ${{ft.properties.tp_sinistro_primario || ft.properties.evento_tipo || '-'}}`;
+}}
+function updateLegend2() {{
+  const priority = [
+    ['obitosMicros', state2.showObitosGroup && state2.showObitosMicros, '<b>Legenda — Óbitos (micropontos)</b><br><span style="color:#b91c1c;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo'],
+    ['obitosPoints', state2.showObitosGroup && state2.showObitosPoints, '<b>Legenda — Óbitos (pontos)</b><br><span style="color:#b91c1c;font-weight:800">●</span> Colisão<br><span style="color:#b91c1c;font-weight:800">◆</span> Choque<br><span style="color:#b91c1c;font-weight:800">▲</span> Atropelamento<br><span style="color:#b91c1c;font-weight:800">■</span> Outros'],
+    ['sinistrosMicros', state2.showSinistrosGroup && state2.showSinistrosMicros, '<b>Legenda — Sinistros (micropontos)</b><br><span style="color:#0b3a70;font-weight:800">● ◆ ▲ ■</span> símbolos por tipo'],
+    ['sinistrosPoints', state2.showSinistrosGroup && state2.showSinistrosPoints, '<b>Legenda — Sinistros (pontos)</b><br><span style="color:#0b3a70;font-weight:800">●</span> Colisão<br><span style="color:#0b3a70;font-weight:800">◆</span> Choque<br><span style="color:#0b3a70;font-weight:800">▲</span> Atropelamento<br><span style="color:#0b3a70;font-weight:800">■</span> Outros'],
+    ['heatObitos', state2.showHeatGroup && state2.showHeatObitos, '<b>Legenda — Mapa de calor de óbitos</b><br><span class="sw" style="background:#fee2e2"></span> Baixo<br><span class="sw" style="background:#ef4444"></span> Médio<br><span class="sw" style="background:#7f1d1d"></span> Alto'],
+    ['heatSinistros', state2.showHeatGroup && state2.showHeatSinistros, '<b>Legenda — Mapa de calor de sinistros</b><br><span class="sw" style="background:#dbeafe"></span> Baixo<br><span class="sw" style="background:#2563eb"></span> Médio<br><span class="sw" style="background:#0b3a70"></span> Alto'],
+    ['malha', state2.showMalhaGroup && (state2.showMalhaSP || state2.showMalhaSPA || state2.showMalhaSPI || state2.showMalhaSPM), '<b>Legenda — Malha estadual</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo']
+  ];
+  const item = priority.find(x => x[1]);
+  legend2._div.innerHTML = item ? item[2] : '<b>Legenda dinâmica</b><br>Ative uma camada na barra lateral.';
+}}
+function bindLayerPanel2() {{
+  const fields = {{
+    grpObitos2: 'showObitosGroup', lyObitosPoints2: 'showObitosPoints', lyObitosMicros2: 'showObitosMicros', lyObitosYear2: 'obitosUseYear',
+    grpSinistros2: 'showSinistrosGroup', lySinistrosPoints2: 'showSinistrosPoints', lySinistrosMicros2: 'showSinistrosMicros', lySinistrosYear2: 'sinistrosUseYear',
+    grpHeat2: 'showHeatGroup', lyHeatObitos2: 'showHeatObitos', lyHeatSinistros2: 'showHeatSinistros', lyHeatYear2: 'heatUseYear',
+    grpMalha2: 'showMalhaGroup', lyMalhaSP2: 'showMalhaSP', lyMalhaSPA2: 'showMalhaSPA', lyMalhaSPI2: 'showMalhaSPI', lyMalhaSPM2: 'showMalhaSPM'
+  }};
+  Object.entries(fields).forEach(([id, key]) => {{
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = !!state2[key];
+    el.addEventListener('change', () => {{ state2[key] = el.checked; renderSubDash(); }});
+  }});
+}}
+bindLayerPanel2();
+function drawMap2(rows) {{
+  const allowedRoads = roadPool2();
+  const lookup = Object.fromEntries(rows.map(r => [r.trecho_id, r]));
+  const maxMetric = Math.max(...rows.map(r => Number(r[state2.metric] || 0)), 1);
+  const selectedYear = state2.year === 'ALL' ? null : Number(state2.year);
+  const fc = {{
+    type: 'FeatureCollection',
+    features: focusMalha.features.filter(f => allowedRoads.includes(f.properties.Rodovia) && (state2.road === 'ALL' || f.properties.Rodovia === state2.road))
+  }};
+  Object.values(overlayGroups2).forEach(g => g.clearLayers());
+  const visibleBounds = L.featureGroup();
+  const addCat = (cat, group, enabled) => {{
+    setLayerVisible2(group, state2.showMalhaGroup && enabled);
+    if (!(state2.showMalhaGroup && enabled)) return;
+    const lyr = L.geoJSON({{ type: 'FeatureCollection', features: fc.features.filter(f => f.properties.categoria_der === cat) }}, {{
+      pane: 'paneMalha2',
+      style: f => {{
+        const row = lookup[f.properties.trecho_id] || {{}};
+        const value = Number(row[state2.metric] || 0);
+        return {{ color: pickColor2(value, maxMetric), weight: value > 0 ? 5 : 2, opacity: 0.95 }};
+      }},
+      onEachFeature: (f, l) => {{
+        const row = lookup[f.properties.trecho_id] || {{ sinistros: 0, obitos: 0, sinistros_por_km: 0, indice_letalidade: 0 }};
+        l.bindPopup(`<b>${{f.properties.Rodovia}}</b><br>Categoria DER: ${{f.properties.categoria_der}}<br>Subtrecho: ${{f.properties.Subtrecho}}<br>Tipo: ${{eventTypeNames2[state2.eventType]}}<br>Ano: ${{state2.year === 'ALL' ? '{anos_range}' : state2.year}}<br>Sinistros: ${{fmt2(row.sinistros)}}<br>Óbitos: ${{fmt2(row.obitos)}}`);
+        l.on('click', () => {{ state2.road = f.properties.Rodovia; subRoad.value = state2.road; renderSubDash(); }});
+      }}
+    }}).addTo(group);
+    visibleBounds.addLayer(lyr);
+  }};
+  addCat('SP', overlayGroups2.malhaSP, state2.showMalhaSP);
+  addCat('SPA', overlayGroups2.malhaSPA, state2.showMalhaSPA);
+  addCat('SPI', overlayGroups2.malhaSPI, state2.showMalhaSPI);
+  addCat('SPM', overlayGroups2.malhaSPM, state2.showMalhaSPM);
+  focusLayer = visibleBounds;
+  if (visibleBounds.getBounds().isValid()) mapSub.fitBounds(visibleBounds.getBounds(), {{ padding: [18, 18] }});
+  const bounds = visibleBounds.getBounds().isValid() ? visibleBounds.getBounds() : null;
+  const filterPoint2 = (ft, useYear) => {{
+    const coords = ft.geometry.coordinates;
+    const sameYear = !(useYear && selectedYear) || Number(ft.properties.ano_sinistro) === selectedYear;
+    const sameRoad = allowedRoads.includes(ft.properties.Rodovia) && (state2.road === 'ALL' || ft.properties.Rodovia === state2.road);
+    const sameTypeEvent = sameType2(ft.properties);
+    const sameArea = !bounds || state2.road === 'ALL' || bounds.contains([coords[1], coords[0]]);
+    return sameYear && sameRoad && sameTypeEvent && sameArea;
+  }};
+  setLayerVisible2(overlayGroups2.obitosPoints, state2.showObitosGroup && state2.showObitosPoints);
+  if (state2.showObitosGroup && state2.showObitosPoints) {{
+    obitosPts2.features.filter(ft => filterPoint2(ft, state2.obitosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', false).bindPopup(pointPopup2(ft, 'Óbito')).addTo(overlayGroups2.obitosPoints);
+    }});
+  }}
+  setLayerVisible2(overlayGroups2.obitosMicros, state2.showObitosGroup && state2.showObitosMicros);
+  if (state2.showObitosGroup && state2.showObitosMicros) {{
+    obitosPts2.features.filter(ft => filterPoint2(ft, state2.obitosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#b91c1c', true).bindPopup(pointPopup2(ft, 'Óbito')).addTo(overlayGroups2.obitosMicros);
+    }});
+  }}
+  setLayerVisible2(overlayGroups2.sinistrosPoints, state2.showSinistrosGroup && state2.showSinistrosPoints);
+  if (state2.showSinistrosGroup && state2.showSinistrosPoints) {{
+    sinistrosPts2.features.filter(ft => filterPoint2(ft, state2.sinistrosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', false).bindPopup(pointPopup2(ft, 'Sinistro')).addTo(overlayGroups2.sinistrosPoints);
+    }});
+  }}
+  setLayerVisible2(overlayGroups2.sinistrosMicros, state2.showSinistrosGroup && state2.showSinistrosMicros);
+  if (state2.showSinistrosGroup && state2.showSinistrosMicros) {{
+    sinistrosPts2.features.filter(ft => filterPoint2(ft, state2.sinistrosUseYear)).forEach(ft => {{
+      const coords = ft.geometry.coordinates;
+      pointMarker2([coords[1], coords[0]], ft.properties.evento_tipo || ft.properties.tp_sinistro_primario, '#0b3a70', true).bindPopup(pointPopup2(ft, 'Sinistro')).addTo(overlayGroups2.sinistrosMicros);
+    }});
+  }}
+  setLayerVisible2(overlayGroups2.heatSinistros, state2.showHeatGroup && state2.showHeatSinistros);
+  if (state2.showHeatGroup && state2.showHeatSinistros) {{
+    const pts = heatSinistros2.points.filter(p => {{
+      const sameYear = !(state2.heatUseYear && selectedYear) || Number(p[2]) === selectedYear;
+      return !bounds || state2.road === 'ALL' || bounds.contains([p[0], p[1]]);
+    }});
+    L.heatLayer(pts.map(p => [p[0], p[1], 0.4]), {{ pane: 'paneHeat2', radius: 10, blur: 12, maxZoom: 10, gradient: {{ 0.2:'#dbeafe',0.5:'#2563eb',1:'#0b3a70' }} }}).addTo(overlayGroups2.heatSinistros);
+  }}
+  setLayerVisible2(overlayGroups2.heatObitos, state2.showHeatGroup && state2.showHeatObitos);
+  if (state2.showHeatGroup && state2.showHeatObitos) {{
+    const pts = heatObitos2.points.filter(p => {{
+      const sameYear = !(state2.heatUseYear && selectedYear) || Number(p[3]) === selectedYear;
+      return !bounds || state2.road === 'ALL' || bounds.contains([p[0], p[1]]);
+    }});
+    L.heatLayer(pts.map(p => [p[0], p[1], 0.3 + (p[2] || 0) * 2]), {{ pane: 'paneHeat2', radius: 10, blur: 12, maxZoom: 10, gradient: {{ 0.2:'#fee2e2',0.5:'#ef4444',1:'#7f1d1d' }} }}).addTo(overlayGroups2.heatObitos);
+  }}
+  updateLegend2();
+}}
+function renderRoadChart2(rows) {{
+  Plotly.react('subRoadChart', [{{
+    type: 'bar',
+    orientation: 'h',
+    x: rows.slice(0, 10).map(r => Number(r[state2.metric] || 0)).reverse(),
+    y: rows.slice(0, 10).map(r => r.Rodovia).reverse(),
+    marker: {{ color: '#0e4d92' }}
+  }}], layout2(`Top rodovias · ${{eventTypeNames2[state2.eventType]}}`), {{ responsive: true, displaylogo: false }});
+}}
+function renderSegChart2(rows) {{
+  const top = [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 12).reverse();
+  Plotly.react('subSegmentChart', [{{
+    type: 'bar',
+    orientation: 'h',
+    x: top.map(r => Number(r[state2.metric] || 0)),
+    y: top.map(r => `${{r.Rodovia}} · km ${{fmt2(r.KmInicial, 2)}}–${{fmt2(r.KmFinal, 2)}}`),
+    marker: {{ color: '#d52b1e' }}
+  }}], layout2('Subtrechos críticos no recorte'), {{ responsive: true, displaylogo: false }});
+}}
+function renderSeries2(rows) {{
+  Plotly.react('subSeriesChart', [{{
+    type: 'scatter', mode: 'lines+markers',
+    x: rows.map(r => r.ano_sinistro),
+    y: rows.map(r => Number(r[state2.metric] || 0)),
+    line: {{ color: '#0e4d92', width: 3 }}
+  }}], layout2(`Evolução anual · ${{metricNames2[state2.metric]}}`), {{ responsive: true, displaylogo: false }});
+}}
+function renderShare2(rows) {{
+  const top = [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 5);
+  Plotly.react('subShareChart', [{{
+    type: 'pie', hole: 0.55,
+    labels: top.map(r => `${{r.Rodovia}} · km ${{fmt2(r.KmInicial, 1)}}`),
+    values: top.map(r => Number(r[state2.metric] || 0)),
+    textinfo: 'percent'
+  }}], {{ ...layout2('Participação dos subtrechos líderes'), margin: {{ l: 10, r: 10, t: 54, b: 10 }} }}, {{ responsive: true, displaylogo: false }});
+}}
+function renderSubDash() {{
+  state2.eventType = subEventType.value;
+  state2.metric = subMetric.value;
+  state2.year = subYear.value;
+  fillRoadOptions2();
+  state2.road = subRoad.value || 'ALL';
+  const rows = currentRows2();
+  const roads = roadRanking2();
+  const series = seriesRows2();
+  updateKpis2(rows, roads);
+  drawMap2(rows);
+  renderRoadChart2(roads);
+  renderSegChart2(rows);
+  renderSeries2(series);
+  renderShare2(rows);
+}}
+subEventType.addEventListener('change', renderSubDash);
+subRoad.addEventListener('change', renderSubDash);
+subMetric.addEventListener('change', renderSubDash);
+subYear.addEventListener('change', renderSubDash);
+document.getElementById('subReset').addEventListener('click', () => {{
+  subEventType.value = 'COLISAO';
+  subMetric.value = 'sinistros';
+  subYear.value = 'ALL';
+  state2.road = 'ALL';
+  renderSubDash();
+}});
+fillRoadOptions2();
+renderSubDash();
+</script>
+"""
+
+(DOCS / "analise_subtrechos.html").write_text(
+    html_page("Dashboard 2 — Subtrechos", sub_body, extra_head=geo_head),
+    encoding="utf-8"
+)
+
+# ============ GUIA DE ACESSO ============
+guia_body = f"""
+<header class="hero">
+  <h1>Guia de Acesso</h1>
+  <p>Navegação do painel Infosiga SP</p>
+</header>
+<main>
+<section><h2>Páginas</h2>
+<ul>
+  <li><a href="index.html"><i class="fa-solid fa-house"></i> Portal</a> — visão geral, KPIs e acesso aos recursos</li>
+  <li><a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a> — 25+ gráficos em 5 categorias</li>
+  <li><a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dashboard 1 — Rodovias</a> — visão por rodovia, tipo de evento e ano</li>
+  <li><a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dashboard 2 — Subtrechos</a> — visão detalhada por subtrecho, tipo de evento e ano</li>
+  <li><a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a> — síntese analítica com recomendações</li>
+</ul></section>
+
+<section><h2>Metodologia</h2>
+<ol>
+  <li><strong>Fonte:</strong> CSVs abertos do Infosiga SP (sinistros, pessoas e veículos), período {anos_range}.</li>
+  <li><strong>Processamento:</strong> parse de datas, conversão de coordenadas (vírgula para ponto decimal), remoção de acentos, filtro pela <em>bounding box</em> do estado de São Paulo e derivação de flags (tem_vitima, tem_fatal, em_rodovia).</li>
+  <li><strong>Análise geográfica:</strong> <em>spatial join</em> do tipo <em>nearest</em> (tolerância de 300 m) entre os pontos de sinistros e a Malha Rodoviária Estadual do DER/SP (EPSG:5880). A <strong>menor unidade espacial de análise é o subtrecho</strong>; as leituras por rodovia são agregações desse nível.</li>
+  <li><strong>Ressalvas:</strong> os dados mais recentes são preliminares; a cobertura de geolocalização e o preenchimento do campo <code>administracao</code> variam conforme o órgão notificador.</li>
+</ol></section>
+
+<section><h2>Listagem de gráficos</h2>
+<ol>
+  <li>Total de sinistros por ano</li>
+  <li>Óbitos por ano</li>
+  <li>Vítimas por gravidade (empilhado)</li>
+  <li>Modal / tipo de veículo envolvido</li>
+  <li>Top 10 tipos de sinistro</li>
+  <li>Gravidade por tipo de sinistro</li>
+  <li>Gravidade da lesão (pessoas)</li>
+  <li>Sexo das vítimas</li>
+  <li>Faixa etária das vítimas</li>
+  <li>Tipo de vítima</li>
+  <li>Evolução anual de óbitos (pessoas)</li>
+  <li>Óbitos por tipo de vítima</li>
+  <li>Série temporal mensal</li>
+  <li>Mapa de calor de sazonalidade</li>
+  <li>Sinistros por dia da semana</li>
+  <li>Óbitos por dia da semana</li>
+  <li>Turno</li>
+  <li>Distribuição horária</li>
+  <li>Sinistros por região administrativa</li>
+  <li>Óbitos por região administrativa</li>
+  <li>Top 20 municípios em óbitos</li>
+  <li>Sinistros por tipo de via</li>
+  <li>Administração da via</li>
+  <li>Heatmap dia × turno</li>
+  <li>Letalidade por hora</li>
+  <li>Letalidade anual</li>
+  <li>Tempo sinistro → óbito</li>
+  <li>Top 10 rodovias (sinistros)</li>
+  <li>Top 10 rodovias (óbitos)</li>
+  <li>Top 10 rodovias (densidade)</li>
+  <li>Top 10 rodovias (letalidade)</li>
+  <li>Bottom 10 rodovias</li>
+  <li>Top 10 trechos (sinistros)</li>
+  <li>Top 10 trechos (óbitos)</li>
+  <li>Top 10 trechos (densidade)</li>
+  <li>Top 10 trechos (óbitos/km)</li>
+  <li>Trechos da rodovia campeã</li>
+</ol></section>
+</main>
+"""
+(DOCS / "GUIA_ACESSO.html").write_text(html_page("Guia — Infosiga SP", guia_body), encoding="utf-8")
+
+print("Páginas geradas em:", DOCS)
+for f in sorted(DOCS.glob("*.html")):
+    print(" -", f.name, f.stat().st_size // 1024, "KB")

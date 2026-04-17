@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Guia — Infosiga SP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+:root{--azul:#0e4d92;--vermelho:#d52b1e;--amarelo:#f7b500;--verde:#2e8b57;--bg:#f3f4f6;--ink:#1f2937;--muted:#6b7280;}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+header.hero{background:linear-gradient(135deg,#0e4d92 0%,#1e40af 60%,#d52b1e 140%);color:white;padding:48px 24px;text-align:center}
+header.hero h1{margin:0 0 8px;font-size:2.2em;letter-spacing:.5px}
+header.hero p{margin:4px 0;opacity:.95}
+nav.top{background:#0b3a70;padding:10px 24px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:sticky;top:0;z-index:10}
+nav.top a{color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;font-weight:500;font-size:.95em}
+nav.top a:hover{background:#d52b1e}
+nav.top i,section h2 i,.card h3 i{margin-right:6px}
+main{max-width:1400px;margin:0 auto;padding:28px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:24px 0}
+.kpi{background:white;border-left:6px solid var(--azul);padding:16px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+.kpi .v{font-size:1.9em;font-weight:700;color:var(--azul)}
+.kpi .l{color:var(--muted);font-size:.85em;text-transform:uppercase;letter-spacing:.5px}
+.kpi.alert{border-left-color:var(--vermelho)} .kpi.alert .v{color:var(--vermelho)}
+.kpi.warn{border-left-color:var(--amarelo)} .kpi.warn .v{color:#b88700}
+.kpi.ok{border-left-color:var(--verde)} .kpi.ok .v{color:var(--verde)}
+section{background:white;margin:24px 0;padding:24px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+section h2{color:var(--azul);margin-top:0;border-bottom:3px solid var(--vermelho);padding-bottom:8px;display:inline-block}
+section h3{color:var(--azul);margin-top:28px}
+.chart-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(520px,1fr));gap:24px;margin-top:16px;align-items:start}
+.chart{background:#fafafa;padding:18px 18px 28px;border-radius:8px;border:1px solid #e5e7eb;overflow:visible;min-width:0;min-height:460px}
+.chart > div{width:100%!important;min-height:420px}
+.js-plotly-plot,.plot-container{width:100%!important}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
+.card{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:transform .2s,box-shadow .2s}
+.card:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,.1)}
+.card h3{margin:0 0 8px;color:var(--azul);font-size:1.1em}
+.card p{color:var(--muted);font-size:.9em}
+.card a{display:inline-block;margin-top:10px;background:var(--azul);color:#fff;padding:8px 14px;border-radius:6px;text-decoration:none;font-size:.9em}
+.card a:hover{background:var(--vermelho)}
+.alert-box{background:#fff7ed;border-left:4px solid var(--amarelo);padding:12px 16px;margin:16px 0;border-radius:6px}
+.insight{background:#eef4ff;border-left:4px solid var(--azul);padding:12px 16px;margin:16px 0;border-radius:6px}
+.danger{background:#fef2f2;border-left:4px solid var(--vermelho);padding:12px 16px;margin:16px 0;border-radius:6px}
+table.tbl{width:100%;border-collapse:collapse;margin-top:12px;font-size:.92em}
+table.tbl th,table.tbl td{padding:8px 10px;border-bottom:1px solid #e5e7eb;text-align:left}
+table.tbl thead{background:var(--azul);color:white}
+table.tbl tr:nth-child(even){background:#f9fafb}
+footer{background:#0b3a70;color:#cbd5e1;padding:24px;text-align:center;margin-top:40px}
+footer a{color:#fff;text-decoration:none}
+#map,#mapSub{height:760px;border-radius:12px;border:1px solid #dbe3ee}
+.legend-map{background:white;padding:10px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.16);font-size:.85em;line-height:1.55;max-width:260px}
+.legend-map .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
+.layer-sidebar{background:rgba(255,255,255,.96);padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.18);min-width:240px;max-width:280px;font-size:.84em;line-height:1.45;border:1px solid #dbe3ee}
+.layer-sidebar h4{margin:0 0 8px;color:var(--azul);font-size:.95em}
+.layer-group{border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
+.layer-group:first-of-type{border-top:none;padding-top:0;margin-top:0}
+.layer-group .master{font-weight:700;color:#0b3a70;display:flex;gap:8px;align-items:center}
+.layer-items{padding-left:20px;margin-top:6px;display:grid;gap:4px}
+.layer-items label{display:flex;gap:8px;align-items:center;color:#334155}
+.sym-marker span{display:inline-flex;align-items:center;justify-content:center;font-weight:800;text-shadow:0 1px 1px rgba(255,255,255,.6)}
+.sym-marker.point span{font-size:16px}
+.sym-marker.micro span{font-size:11px}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.8em;margin-right:4px}
+.geo-main{max-width:none;width:100%;padding:20px 24px 32px}
+.filter-shell{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);margin:20px 0;padding:20px 22px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee}
+.filters{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;align-items:end;margin-top:14px}
+.filters label{display:flex;flex-direction:column;gap:6px;font-weight:600;color:var(--azul);font-size:.92em}
+.filters select,.filters input,.filters button{border:1px solid #cbd5e1;border-radius:8px;padding:10px 12px;font:inherit;background:white;color:var(--ink)}
+.filters button{background:var(--azul);color:white;font-weight:600;cursor:pointer}
+.filters button:hover{background:#0b3a70}
+.checkline{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:8px}
+.checkline label{display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--ink)}
+.geo-board{display:grid;grid-template-columns:minmax(640px,1.35fr) minmax(420px,1fr);gap:18px;margin-top:18px;align-items:start;padding:18px;border-radius:18px;background:linear-gradient(180deg,#eef5ff 0%,#f8fbff 100%);box-shadow:0 8px 24px rgba(15,23,42,.08);border:1px solid #dbe3ee}
+.geo-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-content:start}
+.geo-panel{background:white;padding:16px;border-radius:14px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee;min-width:0}
+.geo-panel.map-panel{position:sticky;top:76px}
+.geo-rail .geo-panel h2{font-size:1em;margin-bottom:8px}
+.plot-host{width:100%;min-height:260px}
+.plot-timeline{min-height:220px;margin-top:10px}
+.layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.layer-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.82em;font-weight:600}
+.map-tip{background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;margin-top:12px;color:var(--muted);font-size:.9em}
+.leaflet-control-layers{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.18)!important;border-radius:10px!important}
+.leaflet-control-layers-expanded{padding:10px 12px;background:white}
+.leaflet-popup-content{line-height:1.45}
+.small-note{color:var(--muted);font-size:.92em;margin-top:6px}
+@media (max-width: 1100px){
+  main,.geo-main{padding:16px}
+  .chart-grid{grid-template-columns:1fr}
+  .chart{min-height:400px}
+  .chart > div{min-height:360px}
+  .geo-board{grid-template-columns:1fr;padding:12px}
+  .geo-rail{grid-template-columns:1fr}
+  .geo-panel.map-panel{position:static}
+  #map{height:560px}
+}
+</style>
+
+</head>
+<body>
+
+<nav class="top">
+  <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
+  <a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a>
+  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dash Rodovias</a>
+  <a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dash Subtrechos</a>
+  <a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a>
+  <a href="GUIA_ACESSO.html"><i class="fa-solid fa-book"></i> Guia</a>
+</nav>
+
+
+<header class="hero">
+  <h1>Guia de Acesso</h1>
+  <p>Navegação do painel Infosiga SP</p>
+</header>
+<main>
+<section><h2>Páginas</h2>
+<ul>
+  <li><a href="index.html"><i class="fa-solid fa-house"></i> Portal</a> — visão geral, KPIs e acesso aos recursos</li>
+  <li><a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a> — 25+ gráficos em 5 categorias</li>
+  <li><a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dashboard 1 — Rodovias</a> — visão por rodovia, tipo de evento e ano</li>
+  <li><a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dashboard 2 — Subtrechos</a> — visão detalhada por subtrecho, tipo de evento e ano</li>
+  <li><a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a> — síntese analítica com recomendações</li>
+</ul></section>
+
+<section><h2>Metodologia</h2>
+<ol>
+  <li><strong>Fonte:</strong> CSVs abertos do Infosiga SP (sinistros, pessoas e veículos), período 2014 – 2026.</li>
+  <li><strong>Processamento:</strong> parse de datas, conversão de coordenadas (vírgula para ponto decimal), remoção de acentos, filtro pela <em>bounding box</em> do estado de São Paulo e derivação de flags (tem_vitima, tem_fatal, em_rodovia).</li>
+  <li><strong>Análise geográfica:</strong> <em>spatial join</em> do tipo <em>nearest</em> (tolerância de 300 m) entre os pontos de sinistros e a Malha Rodoviária Estadual do DER/SP (EPSG:5880). A <strong>menor unidade espacial de análise é o subtrecho</strong>; as leituras por rodovia são agregações desse nível.</li>
+  <li><strong>Ressalvas:</strong> os dados mais recentes são preliminares; a cobertura de geolocalização e o preenchimento do campo <code>administracao</code> variam conforme o órgão notificador.</li>
+</ol></section>
+
+<section><h2>Listagem de gráficos</h2>
+<ol>
+  <li>Total de sinistros por ano</li>
+  <li>Óbitos por ano</li>
+  <li>Vítimas por gravidade (empilhado)</li>
+  <li>Modal / tipo de veículo envolvido</li>
+  <li>Top 10 tipos de sinistro</li>
+  <li>Gravidade por tipo de sinistro</li>
+  <li>Gravidade da lesão (pessoas)</li>
+  <li>Sexo das vítimas</li>
+  <li>Faixa etária das vítimas</li>
+  <li>Tipo de vítima</li>
+  <li>Evolução anual de óbitos (pessoas)</li>
+  <li>Óbitos por tipo de vítima</li>
+  <li>Série temporal mensal</li>
+  <li>Mapa de calor de sazonalidade</li>
+  <li>Sinistros por dia da semana</li>
+  <li>Óbitos por dia da semana</li>
+  <li>Turno</li>
+  <li>Distribuição horária</li>
+  <li>Sinistros por região administrativa</li>
+  <li>Óbitos por região administrativa</li>
+  <li>Top 20 municípios em óbitos</li>
+  <li>Sinistros por tipo de via</li>
+  <li>Administração da via</li>
+  <li>Heatmap dia × turno</li>
+  <li>Letalidade por hora</li>
+  <li>Letalidade anual</li>
+  <li>Tempo sinistro → óbito</li>
+  <li>Top 10 rodovias (sinistros)</li>
+  <li>Top 10 rodovias (óbitos)</li>
+  <li>Top 10 rodovias (densidade)</li>
+  <li>Top 10 rodovias (letalidade)</li>
+  <li>Bottom 10 rodovias</li>
+  <li>Top 10 trechos (sinistros)</li>
+  <li>Top 10 trechos (óbitos)</li>
+  <li>Top 10 trechos (densidade)</li>
+  <li>Top 10 trechos (óbitos/km)</li>
+  <li>Trechos da rodovia campeã</li>
+</ol></section>
+</main>
+
+
+<footer>
+  <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
+  <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
+  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 17/04/2026 18:13</div>
+</footer>
+
+</body></html>
