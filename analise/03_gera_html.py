@@ -22,7 +22,19 @@ import plotly.io as pio
 ROOT = Path(r"d:\acidentes_infosiga_analise_exploratoria")
 OUT = ROOT / "analise" / "out"
 DOCS = ROOT / "docs"
+ASSETS = DOCS / "assets"
 DOCS.mkdir(exist_ok=True)
+ASSETS.mkdir(exist_ok=True)
+
+
+def write_json_asset(name, data):
+    path = ASSETS / name
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(data, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8",
+    )
+    return f"assets/{name}"
 
 # ================= CARREGA DADOS =================
 def j(name):
@@ -945,21 +957,27 @@ malha_obj = json.load(open(OUT / "malha_topN.geojson", encoding="utf-8"))
 road_names_geo = sorted({f_["properties"]["Rodovia"] for f_ in malha_obj["features"]})
 road_rows_geo = [r_ for r_ in rod["all"] if r_["Rodovia"] in road_names_geo]
 
-malha_geo = json.dumps(malha_obj, ensure_ascii=False)
-pontos_obitos = json.dumps(json.load(open(OUT / "pontos_obitos.geojson", encoding="utf-8")), ensure_ascii=False)
-pontos_sinistros = json.dumps(json.load(open(OUT / "pontos_sinistros_amostra.geojson", encoding="utf-8")), ensure_ascii=False)
-pontos_tipos = json.dumps(json.load(open(OUT / "pontos_vitimas_amostra.geojson", encoding="utf-8")), ensure_ascii=False)
-heat_sinistros_js = json.dumps(json.load(open(OUT / "heat_points_sinistros.json", encoding="utf-8")), ensure_ascii=False)
-heat_obitos_js = json.dumps(json.load(open(OUT / "heat_points_obitos.json", encoding="utf-8")), ensure_ascii=False)
-ag_ano_js = json.dumps(ag_ano[["ano_sinistro", "sinistros", "vitimas_fatais"]].to_dict(orient="records"), ensure_ascii=False)
-ag_mes_js = json.dumps(ag_mes[["ano_sinistro", "mes_sinistro", "sinistros", "fatais"]].to_dict(orient="records"), ensure_ascii=False)
+geo_asset_path = write_json_asset("geo/rodovias_dashboard_main.json", {
+    "roadRowsAll": road_rows_geo,
+    "roadRowsByYear": rod.get("all_by_year", []),
+    "roadRowsByYearType": rod.get("all_by_year_type", []),
+    "malha": malha_obj,
+})
+geo_analytics_asset_path = write_json_asset("geo/rodovias_dashboard_analytics.json", {
+    "annualRows": ag_ano[["ano_sinistro", "sinistros", "vitimas_fatais"]].to_dict(orient="records"),
+    "monthlyRows": ag_mes[["ano_sinistro", "mes_sinistro", "sinistros", "fatais"]].to_dict(orient="records"),
+    "segRowsByYear": trc.get("all_by_year", []),
+    "segRowsByType": trc.get("all_by_type", []),
+    "segRowsByYearType": trc.get("all_by_year_type", []),
+})
+geo_overlay_asset_path = write_json_asset("geo/rodovias_dashboard_overlays.json", {
+    "obitosPts": json.load(open(OUT / "pontos_obitos.geojson", encoding="utf-8")),
+    "sinistrosPts": json.load(open(OUT / "pontos_sinistros_amostra.geojson", encoding="utf-8")),
+    "pontosTipos": json.load(open(OUT / "pontos_vitimas_amostra.geojson", encoding="utf-8")),
+    "heatSinistros": json.load(open(OUT / "heat_points_sinistros.json", encoding="utf-8")),
+    "heatObitos": json.load(open(OUT / "heat_points_obitos.json", encoding="utf-8")),
+})
 year_options_html = "\n".join(f'<option value="{int(a)}">{int(a)}</option>' for a in ag_ano["ano_sinistro"].tolist())
-road_rows_js = json.dumps(road_rows_geo, ensure_ascii=False)
-road_year_rows_js = json.dumps(rod.get("all_by_year", []), ensure_ascii=False)
-road_year_type_rows_js = json.dumps(rod.get("all_by_year_type", []), ensure_ascii=False)
-seg_year_rows_js = json.dumps(trc.get("all_by_year", []), ensure_ascii=False)
-seg_type_rows_js = json.dumps(trc.get("all_by_type", []), ensure_ascii=False)
-seg_year_type_rows_js = json.dumps(trc.get("all_by_year_type", []), ensure_ascii=False)
 
 geo_head = """
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -1078,26 +1096,95 @@ geo_body = f"""
 </section>
 </main>
 <script>
-const roadRowsAll = {road_rows_js};
-const roadRowsByYear = {road_year_rows_js};
-const roadRowsByYearType = {road_year_type_rows_js};
-const annualRows = {ag_ano_js};
-const monthlyRows = {ag_mes_js};
-const malha = {malha_geo};
-const obitosPts = {pontos_obitos};
-const sinistrosPts = {pontos_sinistros};
-const pontosTipos = {pontos_tipos};
-const heatSinistros = {heat_sinistros_js};
-const heatObitos = {heat_obitos_js};
-const segRowsAll = malha.features.map(f => ({{ ...f.properties }}));
-const segRowsByYear = {seg_year_rows_js};
-const segRowsByType = {seg_type_rows_js};
-const segRowsByYearType = {seg_year_type_rows_js};
+const GEO_DATA_URL = '{geo_asset_path}';
+const GEO_ANALYTICS_URL = '{geo_analytics_asset_path}';
+const GEO_OVERLAY_URL = '{geo_overlay_asset_path}';
+let roadRowsAll = [];
+let roadRowsByYear = [];
+let roadRowsByYearType = [];
+let annualRows = [];
+let monthlyRows = [];
+let malha = {{ type: 'FeatureCollection', features: [] }};
+let obitosPts = {{ type: 'FeatureCollection', features: [] }};
+let sinistrosPts = {{ type: 'FeatureCollection', features: [] }};
+let pontosTipos = {{ type: 'FeatureCollection', features: [] }};
+let heatSinistros = {{ points: [] }};
+let heatObitos = {{ points: [] }};
+let segRowsAll = [];
+let segRowsByYear = [];
+let segRowsByType = [];
+let segRowsByYearType = [];
+let geoAnalyticsLoaded = false;
+let geoAnalyticsLoading = null;
+let geoOverlaysLoaded = false;
+let geoOverlaysLoading = null;
+
+async function loadGeoData() {{
+  const response = await fetch(GEO_DATA_URL, {{ cache: 'force-cache' }});
+  if (!response.ok) throw new Error(`Falha ao carregar dados do mapa: ${{response.status}}`);
+  const data = await response.json();
+  roadRowsAll = data.roadRowsAll || [];
+  roadRowsByYear = data.roadRowsByYear || [];
+  roadRowsByYearType = data.roadRowsByYearType || [];
+  malha = data.malha || {{ type: 'FeatureCollection', features: [] }};
+  segRowsAll = (malha.features || []).map(f => ({{ ...f.properties }}));
+}}
+
+async function ensureGeoAnalyticsLoaded() {{
+  if (geoAnalyticsLoaded) return;
+  if (geoAnalyticsLoading) return geoAnalyticsLoading;
+  geoAnalyticsLoading = fetch(GEO_ANALYTICS_URL, {{ cache: 'force-cache' }})
+    .then((response) => {{
+      if (!response.ok) throw new Error(`Falha ao carregar séries analíticas: ${{response.status}}`);
+      return response.json();
+    }})
+    .then((data) => {{
+      annualRows = data.annualRows || [];
+      monthlyRows = data.monthlyRows || [];
+      segRowsByYear = data.segRowsByYear || [];
+      segRowsByType = data.segRowsByType || [];
+      segRowsByYearType = data.segRowsByYearType || [];
+      geoAnalyticsLoaded = true;
+    }})
+    .finally(() => {{ geoAnalyticsLoading = null; }});
+  return geoAnalyticsLoading;
+}}
+
+async function ensureGeoOverlaysLoaded() {{
+  if (geoOverlaysLoaded) return;
+  if (geoOverlaysLoading) return geoOverlaysLoading;
+  geoOverlaysLoading = fetch(GEO_OVERLAY_URL, {{ cache: 'force-cache' }})
+    .then((response) => {{
+      if (!response.ok) throw new Error(`Falha ao carregar camadas geográficas: ${{response.status}}`);
+      return response.json();
+    }})
+    .then((data) => {{
+      obitosPts = data.obitosPts || {{ type: 'FeatureCollection', features: [] }};
+      sinistrosPts = data.sinistrosPts || {{ type: 'FeatureCollection', features: [] }};
+      pontosTipos = data.pontosTipos || {{ type: 'FeatureCollection', features: [] }};
+      heatSinistros = data.heatSinistros || {{ points: [] }};
+      heatObitos = data.heatObitos || {{ points: [] }};
+      geoOverlaysLoaded = true;
+    }})
+    .finally(() => {{ geoOverlaysLoading = null; }});
+  return geoOverlaysLoading;
+}}
+
+function warmGeoAnalytics() {{
+  const run = () => ensureGeoAnalyticsLoaded().then(() => renderAll()).catch(console.error);
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, {{ timeout: 1200 }});
+  else setTimeout(run, 250);
+}}
+function warmGeoOverlays() {{
+  const run = () => ensureGeoOverlaysLoaded().then(() => renderAll()).catch(console.error);
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, {{ timeout: 2000 }});
+  else setTimeout(run, 700);
+}}
 const state = {{
   road: 'ALL', eventType: 'ALL', metric: 'sinistros', order: 'desc', topN: 8, year: 'ALL',
-  showObitosGroup: true, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
-  showSinistrosGroup: true, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
-  showHeatGroup: true, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
+  showObitosGroup: false, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
+  showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
+  showHeatGroup: false, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
   showMalhaGroup: true, showMalhaSP: true, showMalhaSPA: true, showMalhaSPI: true, showMalhaSPM: true
 }};
 const metricNames = {{
@@ -1447,6 +1534,14 @@ function drawMap(rows, segs) {{
   else mapa.setView([-22.5, -48.5], 7);
   const bounds = visibleBounds.getBounds().isValid() ? visibleBounds.getBounds() : null;
 
+  if (!geoOverlaysLoaded) {{
+    if (!geoOverlaysLoading && (state.showObitosGroup || state.showSinistrosGroup || state.showHeatGroup)) {{
+      ensureGeoOverlaysLoaded().then(() => renderAll()).catch(console.error);
+    }}
+    updateLegend();
+    return;
+  }}
+
   const filterPoint = (ft, useYear) => {{
     const coords = ft.geometry.coordinates;
     const sameYear = !(useYear && selectedYear) || Number(ft.properties.ano_sinistro) === selectedYear;
@@ -1726,8 +1821,20 @@ document.getElementById('btnReset').addEventListener('click', () => {{
   renderAll();
 }});
 
-fillRoadOptions();
-renderAll();
+(async function initGeoDashboard() {{
+  try {{
+    topNLabel.textContent = 'Carregando dados geográficos...';
+    await loadGeoData();
+    fillRoadOptions();
+    renderAll();
+    topNLabel.textContent = 'Mapa pronto. Por padrão, apenas a malha viária fica carregada; as demais camadas entram sob demanda.';
+    warmGeoAnalytics();
+  }} catch (err) {{
+    console.error(err);
+    topNLabel.textContent = 'Falha ao carregar os dados geográficos do painel.';
+    mapCaption.textContent = 'Não foi possível carregar o painel analítico.';
+  }}
+}})();
 </script>
 """
 
@@ -1743,11 +1850,22 @@ malha_focus_obj = {
     "type": "FeatureCollection",
     "features": [f_ for f_ in malha_obj["features"] if f_["properties"].get("Rodovia") in focus_road_set],
 }
-malha_focus_geo = json.dumps(malha_focus_obj, ensure_ascii=False)
-subtr_top_roads_js = json.dumps(subtr.get("top10_rodovias_por_tipo", {}), ensure_ascii=False)
-subtr_focus_rows_js = json.dumps(subtr.get("subtrechos_foco", []), ensure_ascii=False)
-subtr_focus_type_rows_js = json.dumps(subtr.get("subtrechos_foco_by_type", []), ensure_ascii=False)
-subtr_focus_year_type_rows_js = json.dumps(subtr.get("subtrechos_foco_by_year_type", []), ensure_ascii=False)
+sub_asset_path = write_json_asset("geo/subtrechos_dashboard_main.json", {
+    "focusMalha": malha_focus_obj,
+    "topRoadsByType": subtr.get("top10_rodovias_por_tipo", {}),
+    "focusRowsAll": subtr.get("subtrechos_foco", []),
+    "focusRowsByType": subtr.get("subtrechos_foco_by_type", []),
+})
+sub_analytics_asset_path = write_json_asset("geo/subtrechos_dashboard_analytics.json", {
+    "focusRowsByYearType": subtr.get("subtrechos_foco_by_year_type", []),
+    "roadYearTypeRows": rod.get("all_by_year_type", []),
+})
+sub_overlay_asset_path = write_json_asset("geo/subtrechos_dashboard_overlays.json", {
+    "obitosPts": json.load(open(OUT / "pontos_obitos.geojson", encoding="utf-8")),
+    "sinistrosPts": json.load(open(OUT / "pontos_sinistros_amostra.geojson", encoding="utf-8")),
+    "heatSinistros": json.load(open(OUT / "heat_points_sinistros.json", encoding="utf-8")),
+    "heatObitos": json.load(open(OUT / "heat_points_obitos.json", encoding="utf-8")),
+})
 
 sub_body = f"""
 <header class="hero">
@@ -1828,23 +1946,87 @@ sub_body = f"""
 </section>
 </main>
 <script>
-const focusMalha = {malha_focus_geo};
-const topRoadsByType = {subtr_top_roads_js};
-const focusRowsAll = {subtr_focus_rows_js};
-const focusRowsByType = {subtr_focus_type_rows_js};
-const focusRowsByYearType = {subtr_focus_year_type_rows_js};
-const roadYearTypeRows = {road_year_type_rows_js};
-const obitosPts2 = {pontos_obitos};
-const sinistrosPts2 = {pontos_sinistros};
-const heatSinistros2 = {heat_sinistros_js};
-const heatObitos2 = {heat_obitos_js};
+const SUB_DATA_URL = '{sub_asset_path}';
+const SUB_ANALYTICS_URL = '{sub_analytics_asset_path}';
+const SUB_OVERLAY_URL = '{sub_overlay_asset_path}';
+let focusMalha = {{ type: 'FeatureCollection', features: [] }};
+let topRoadsByType = {{}};
+let focusRowsAll = [];
+let focusRowsByType = [];
+let focusRowsByYearType = [];
+let roadYearTypeRows = [];
+let obitosPts2 = {{ type: 'FeatureCollection', features: [] }};
+let sinistrosPts2 = {{ type: 'FeatureCollection', features: [] }};
+let heatSinistros2 = {{ points: [] }};
+let heatObitos2 = {{ points: [] }};
+let subAnalyticsLoaded = false;
+let subAnalyticsLoading = null;
+let subOverlaysLoaded = false;
+let subOverlaysLoading = null;
+
+async function loadSubData() {{
+  const response = await fetch(SUB_DATA_URL, {{ cache: 'force-cache' }});
+  if (!response.ok) throw new Error(`Falha ao carregar dados dos subtrechos: ${{response.status}}`);
+  const data = await response.json();
+  focusMalha = data.focusMalha || {{ type: 'FeatureCollection', features: [] }};
+  topRoadsByType = data.topRoadsByType || {{}};
+  focusRowsAll = data.focusRowsAll || [];
+  focusRowsByType = data.focusRowsByType || [];
+}}
+
+async function ensureSubAnalyticsLoaded() {{
+  if (subAnalyticsLoaded) return;
+  if (subAnalyticsLoading) return subAnalyticsLoading;
+  subAnalyticsLoading = fetch(SUB_ANALYTICS_URL, {{ cache: 'force-cache' }})
+    .then((response) => {{
+      if (!response.ok) throw new Error(`Falha ao carregar séries dos subtrechos: ${{response.status}}`);
+      return response.json();
+    }})
+    .then((data) => {{
+      focusRowsByYearType = data.focusRowsByYearType || [];
+      roadYearTypeRows = data.roadYearTypeRows || [];
+      subAnalyticsLoaded = true;
+    }})
+    .finally(() => {{ subAnalyticsLoading = null; }});
+  return subAnalyticsLoading;
+}}
+
+async function ensureSubOverlaysLoaded() {{
+  if (subOverlaysLoaded) return;
+  if (subOverlaysLoading) return subOverlaysLoading;
+  subOverlaysLoading = fetch(SUB_OVERLAY_URL, {{ cache: 'force-cache' }})
+    .then((response) => {{
+      if (!response.ok) throw new Error(`Falha ao carregar camadas dos subtrechos: ${{response.status}}`);
+      return response.json();
+    }})
+    .then((data) => {{
+      obitosPts2 = data.obitosPts || {{ type: 'FeatureCollection', features: [] }};
+      sinistrosPts2 = data.sinistrosPts || {{ type: 'FeatureCollection', features: [] }};
+      heatSinistros2 = data.heatSinistros || {{ points: [] }};
+      heatObitos2 = data.heatObitos || {{ points: [] }};
+      subOverlaysLoaded = true;
+    }})
+    .finally(() => {{ subOverlaysLoading = null; }});
+  return subOverlaysLoading;
+}}
+
+function warmSubAnalytics() {{
+  const run = () => ensureSubAnalyticsLoaded().then(() => renderSubDash()).catch(console.error);
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, {{ timeout: 1200 }});
+  else setTimeout(run, 250);
+}}
+function warmSubOverlays() {{
+  const run = () => ensureSubOverlaysLoaded().then(() => renderSubDash()).catch(console.error);
+  if ('requestIdleCallback' in window) window.requestIdleCallback(run, {{ timeout: 2000 }});
+  else setTimeout(run, 700);
+}}
 const eventTypeNames2 = {{ COLISAO: 'Colisão', CHOQUE: 'Choque', ATROPELAMENTO: 'Atropelamento', OUTROS: 'Outros' }};
 const metricNames2 = {{ sinistros: 'Sinistros', obitos: 'Óbitos', sinistros_por_km: 'Sinistros/km', indice_letalidade: 'Letalidade (%)' }};
 const state2 = {{
   eventType: 'COLISAO', road: 'ALL', metric: 'sinistros', year: 'ALL',
-  showObitosGroup: true, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
-  showSinistrosGroup: true, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
-  showHeatGroup: true, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
+  showObitosGroup: false, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
+  showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
+  showHeatGroup: false, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
   showMalhaGroup: true, showMalhaSP: true, showMalhaSPA: true, showMalhaSPI: true, showMalhaSPM: true
 }};
 
@@ -2145,6 +2327,13 @@ function drawMap2(rows) {{
   focusLayer = visibleBounds;
   if (visibleBounds.getBounds().isValid()) mapSub.fitBounds(visibleBounds.getBounds(), {{ padding: [18, 18] }});
   const bounds = visibleBounds.getBounds().isValid() ? visibleBounds.getBounds() : null;
+  if (!subOverlaysLoaded) {{
+    if (!subOverlaysLoading && (state2.showObitosGroup || state2.showSinistrosGroup || state2.showHeatGroup)) {{
+      ensureSubOverlaysLoaded().then(() => renderSubDash()).catch(console.error);
+    }}
+    updateLegend2();
+    return;
+  }}
   const filterPoint2 = (ft, useYear) => {{
     const coords = ft.geometry.coordinates;
     const sameYear = !(useYear && selectedYear) || Number(ft.properties.ano_sinistro) === selectedYear;
@@ -2262,8 +2451,19 @@ document.getElementById('subReset').addEventListener('click', () => {{
   state2.road = 'ALL';
   renderSubDash();
 }});
-fillRoadOptions2();
-renderSubDash();
+(async function initSubDashboard() {{
+  try {{
+    subCaption.textContent = 'Carregando dados dos subtrechos...';
+    await loadSubData();
+    fillRoadOptions2();
+    renderSubDash();
+    subCaption.textContent = 'Painel pronto. Por padrão, apenas a malha viária fica carregada; as demais camadas entram sob demanda.';
+    warmSubAnalytics();
+  }} catch (err) {{
+    console.error(err);
+    subCaption.textContent = 'Não foi possível carregar o painel de subtrechos.';
+  }}
+}})();
 </script>
 """
 
