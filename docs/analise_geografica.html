@@ -19,7 +19,8 @@ nav.top a{color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;fon
 nav.top a:hover{background:#d52b1e}
 nav.top i,section h2 i,.card h3 i{margin-right:6px}
 main{width:90%;max-width:none;margin:0 5%;padding:28px 0 36px}
-.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:18px;margin:18px 0 0}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px;margin:18px 0 0;width:100%}
+.portal-kpis{grid-template-columns:repeat(3,minmax(0,1fr));max-width:none;margin:18px 0 0}
 .kpi{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);padding:20px 16px;border-radius:16px;border:1px solid #dbe3ee;box-shadow:0 6px 18px rgba(15,23,42,.06);min-height:158px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}
 .kpi .i{font-size:1.45rem;line-height:1;color:var(--azul);margin-bottom:10px}
 .kpi .t{font-size:1rem;font-weight:700;color:#0f172a}
@@ -45,7 +46,7 @@ section h3{color:var(--azul);margin-top:28px}
 .chart > div{width:100%!important;min-height:420px;max-width:100%!important}
 .js-plotly-plot,.plot-container{width:100%!important;max-width:100%!important}
 .gtitle{font-weight:700!important}
-.card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;margin-top:16px}
+.card-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px;width:100%}
 .card{background:white;border:1px solid #e5e7eb;border-radius:10px;padding:18px;box-shadow:0 1px 4px rgba(0,0,0,.05);transition:transform .2s,box-shadow .2s}
 .card:hover{transform:translateY(-3px);box-shadow:0 6px 18px rgba(0,0,0,.1)}
 .card h3{margin:0 0 8px;color:var(--azul);font-size:1.1em}
@@ -86,12 +87,18 @@ footer a{color:#fff;text-decoration:none}
 .checkline{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding-top:10px}
 .checkline label{display:flex;flex-direction:row;align-items:center;gap:8px;font-weight:500;color:var(--ink)}
 .geo-board{display:grid;grid-template-columns:minmax(700px,1.45fr) minmax(420px,1fr);gap:20px;margin-top:10px;align-items:start;padding:20px;border-radius:20px;background:linear-gradient(180deg,#eef5ff 0%,#f8fbff 100%);box-shadow:0 10px 28px rgba(15,23,42,.08);border:1px solid #dbe3ee}
+.geo-board-inline{grid-template-columns:1fr}
 .geo-rail{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-content:start}
+.geo-rail-five{grid-template-columns:repeat(2,minmax(260px,1fr));align-items:stretch}
+.geo-rail-five .span-2{grid-column:1 / -1}
 .geo-panel{background:white;padding:18px;border-radius:16px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee;min-width:0}
 .geo-panel.map-panel{position:sticky;top:76px}
+.map-composite{display:grid;grid-template-columns:minmax(640px,1.2fr) minmax(480px,1fr);gap:18px;align-items:stretch}
+.map-stage{display:flex;flex-direction:column;gap:10px;height:100%}
+.map-stage #map,.map-stage #mapSub{flex:1 1 auto;height:100%;min-height:860px}
 .geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px}
 .plot-host{width:100%;min-height:280px}
-.plot-timeline{min-height:240px;margin-top:8px}
+.plot-timeline{min-height:320px;margin-top:8px}
 .layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
 .layer-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.82em;font-weight:600}
 .map-tip{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:11px 13px;margin-top:14px;color:var(--muted);font-size:.9em}
@@ -101,18 +108,21 @@ footer a{color:#fff;text-decoration:none}
 .small-note{color:var(--muted);font-size:.92em;margin-top:6px}
 @media (max-width: 1100px){
   main,.geo-main{padding:16px}
-  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpis,.portal-kpis,.card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .chart-grid{grid-template-columns:1fr}
   .chart{min-height:400px}
   .chart > div{min-height:360px}
   .filter-shell,.stats-shell,.analytics-shell{padding:16px}
   .geo-board{grid-template-columns:1fr;padding:12px}
-  .geo-rail{grid-template-columns:1fr}
+  .geo-rail,.geo-rail-five{grid-template-columns:1fr}
+  .geo-rail-five .span-2{grid-column:auto}
+  .map-composite{grid-template-columns:1fr}
   .geo-panel.map-panel{position:static}
   #map,#mapSub{height:560px}
+  .map-stage #map{min-height:560px}
 }
 @media (max-width: 680px){
-  .kpis{grid-template-columns:1fr}
+  .kpis,.portal-kpis,.card-grid{grid-template-columns:1fr}
 }
 </style>
 
@@ -150,12 +160,14 @@ footer a{color:#fff;text-decoration:none}
   <div class="filters">
     <label>Rodovia
       <select id="fltRoad">
+        <option value="" disabled selected>Selecione um valor...</option>
         <option value="ALL">Todas as rodovias do mapa</option>
       </select>
     </label>
     <label>Tipo de evento
       <select id="fltEventType">
-        <option value="ALL">Todos os eventos</option>
+        <option value="" disabled selected>Selecione um valor...</option>
+        <option value="ALL">Todos</option>
         <option value="COLISAO">Colisão</option>
         <option value="CHOQUE">Choque</option>
         <option value="ATROPELAMENTO">Atropelamento</option>
@@ -164,6 +176,7 @@ footer a{color:#fff;text-decoration:none}
     </label>
     <label>Indicador
       <select id="fltMetric">
+        <option value="" disabled selected>Selecione um valor...</option>
         <option value="sinistros">Sinistros</option>
         <option value="obitos">Óbitos</option>
         <option value="sinistros_por_km">Sinistros por km</option>
@@ -172,13 +185,15 @@ footer a{color:#fff;text-decoration:none}
     </label>
     <label>Ordenação
       <select id="fltOrder">
+        <option value="" disabled selected>Selecione um valor...</option>
         <option value="desc">Maiores valores</option>
         <option value="asc">Menores valores</option>
       </select>
     </label>
     <label>Ano em destaque
       <select id="fltYear">
-        <option value="ALL">Período completo (2014 – 2026)</option>
+        <option value="" disabled selected>Selecione um valor...</option>
+        <option value="ALL">Todos os períodos (2014 – 2026)</option>
         <option value="2014">2014</option>
 <option value="2015">2015</option>
 <option value="2016">2016</option>
@@ -212,45 +227,49 @@ footer a{color:#fff;text-decoration:none}
 <section class="analytics-shell">
   <h2>Painel analítico</h2>
   <p id="map-caption" class="section-intro">Mapa e gráficos lado a lado, com resposta cruzada a todos os filtros do painel.</p>
-  <div class="geo-board">
+  <div class="geo-board geo-board-inline">
     <section class="geo-panel map-panel">
-      <h2><i class="fa-solid fa-map-location-dot"></i> Mapa DER com camadas</h2>
-      <div id="map"></div>
-      <div class="layer-hint">
-        <span class="layer-chip">Trechos DER por criticidade</span>
-        <span class="layer-chip">Eventos por tipo</span>
-        <span class="layer-chip">Pontos fatais</span>
-        <span class="layer-chip">Mapa de calor</span>
+      <div class="map-composite">
+        <div class="map-stage">
+          <h2><i class="fa-solid fa-map-location-dot"></i> Mapa DER com camadas</h2>
+          <div id="map"></div>
+          <div class="layer-hint">
+            <span class="layer-chip">Trechos DER por criticidade</span>
+            <span class="layer-chip">Eventos por tipo</span>
+            <span class="layer-chip">Pontos fatais</span>
+            <span class="layer-chip">Mapa de calor</span>
+          </div>
+          <div class="map-tip">Os grupos da barra lateral do mapa ligam ou desligam automaticamente todas as camadas internas.</div>
+        </div>
+
+        <div class="geo-rail geo-rail-five">
+          <section class="geo-panel">
+            <h2><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
+            <div id="roadRankChart" class="plot-host"></div>
+          </section>
+
+          <section class="geo-panel">
+            <h2><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
+            <div id="bubbleChart" class="plot-host"></div>
+          </section>
+
+          <section class="geo-panel">
+            <h2><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
+            <div id="segmentChart" class="plot-host"></div>
+          </section>
+
+          <section class="geo-panel">
+            <h2><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
+            <div id="compareChart" class="plot-host"></div>
+          </section>
+
+          <section class="geo-panel span-2">
+            <h2><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
+            <div id="timelineChart" class="plot-host plot-timeline"></div>
+          </section>
+        </div>
       </div>
-      <div class="map-tip">Os grupos da barra lateral do mapa ligam ou desligam automaticamente todas as camadas internas.</div>
     </section>
-
-    <div class="geo-rail">
-      <section class="geo-panel">
-        <h2><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
-        <div id="timelineChart" class="plot-host plot-timeline"></div>
-      </section>
-
-      <section class="geo-panel">
-        <h2><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
-        <div id="roadRankChart" class="plot-host"></div>
-      </section>
-
-      <section class="geo-panel">
-        <h2><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
-        <div id="bubbleChart" class="plot-host"></div>
-      </section>
-
-      <section class="geo-panel">
-        <h2><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
-        <div id="segmentChart" class="plot-host"></div>
-      </section>
-
-      <section class="geo-panel">
-        <h2><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
-        <div id="compareChart" class="plot-host"></div>
-      </section>
-    </div>
   </div>
 </section>
 </main>
@@ -340,11 +359,11 @@ function warmGeoOverlays() {
   else setTimeout(run, 700);
 }
 const state = {
-  road: 'ALL', eventType: 'ALL', metric: 'sinistros', order: 'desc', topN: 8, year: 'ALL',
-  showObitosGroup: false, showObitosPoints: true, showObitosMicros: false, obitosUseYear: true,
-  showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: true, sinistrosUseYear: true,
-  showHeatGroup: false, showHeatObitos: false, showHeatSinistros: true, heatUseYear: true,
-  showMalhaGroup: true, showMalhaSP: true, showMalhaSPA: true, showMalhaSPI: true, showMalhaSPM: true
+  road: '', eventType: '', metric: '', order: '', topN: 8, year: '',
+  showObitosGroup: false, showObitosPoints: false, showObitosMicros: false, obitosUseYear: false,
+  showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: false, sinistrosUseYear: false,
+  showHeatGroup: false, showHeatObitos: false, showHeatSinistros: false, heatUseYear: false,
+  showMalhaGroup: false, showMalhaSP: false, showMalhaSPA: false, showMalhaSPI: false, showMalhaSPM: false, showMalhaOUTRAS: false
 };
 const metricNames = {
   sinistros: 'Sinistros',
@@ -440,6 +459,24 @@ function currentSegRows() {
   return base.filter(r => state.road === 'ALL' || r.Rodovia === state.road);
 }
 
+function timeSeriesRowsScoped() {
+  let base = state.eventType === 'ALL'
+    ? roadRowsByYear
+    : roadRowsByYearType.filter(r => sameType(r));
+  base = base.filter(r => state.road === 'ALL' || r.Rodovia === state.road);
+  const byYear = {};
+  base.forEach(r => {
+    const y = String(r.ano_sinistro || '');
+    if (!y) return;
+    if (!byYear[y]) byYear[y] = { ano_sinistro: y, sinistros: 0, obitos: 0 };
+    byYear[y].sinistros += Number(r.sinistros || 0);
+    byYear[y].obitos += Number(r.obitos || r.vitimas_fatais || 0);
+  });
+  let out = Object.values(byYear).sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro));
+  if (state.year !== 'ALL') out = out.filter(r => String(r.ano_sinistro) === String(state.year));
+  return out;
+}
+
 function fillRoadOptions() {
   const roadLookup = Object.fromEntries(roadRowsAll.map(r => [r.Rodovia, r]));
   const allRoads = [...new Set(malha.features.map(f => f.properties.Rodovia).filter(Boolean))].sort();
@@ -481,6 +518,8 @@ function updateKpis(rows, segs) {
 const mapa = L.map('map', { zoomControl: true }).setView([-22.5, -48.5], 7);
 const baseLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }).addTo(mapa);
 mapa.attributionControl.setPrefix(false);
+window.addEventListener('load', () => setTimeout(() => mapa.invalidateSize(), 120));
+window.addEventListener('resize', () => mapa.invalidateSize());
 ['paneMalha','paneHeat','paneSinPts','paneSinMicro','paneObPts','paneObMicro'].forEach(name => mapa.createPane(name));
 mapa.getPane('paneMalha').style.zIndex = 320;
 mapa.getPane('paneHeat').style.zIndex = 420;
@@ -495,6 +534,7 @@ const overlayGroups = {
   malhaSPA: L.layerGroup().addTo(mapa),
   malhaSPI: L.layerGroup().addTo(mapa),
   malhaSPM: L.layerGroup().addTo(mapa),
+  malhaOUTRAS: L.layerGroup().addTo(mapa),
   heatSinistros: L.layerGroup().addTo(mapa),
   heatObitos: L.layerGroup().addTo(mapa),
   sinistrosPoints: L.layerGroup().addTo(mapa),
@@ -511,10 +551,11 @@ const legendHtmlMap = {
   heatSinistros: '<b>Legenda — Mapa de calor de sinistros</b><br><span class="sw" style="background:#dbeafe"></span> Baixo<br><span class="sw" style="background:#2563eb"></span> Médio<br><span class="sw" style="background:#0b3a70"></span> Alto',
   malhaSP: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
   malhaSPA: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
-  malhaSPI: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
-  malhaSPM: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo'
+  malhaSPI: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM/BR)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
+  malhaSPM: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM/BR)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
+  malhaOUTRAS: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM/BR)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo'
 };
-const legendPriority = ['obitosMicros','obitosPoints','sinistrosMicros','sinistrosPoints','heatObitos','heatSinistros','malhaSPM','malhaSPI','malhaSPA','malhaSP'];
+const legendPriority = ['obitosMicros','obitosPoints','sinistrosMicros','sinistrosPoints','heatObitos','heatSinistros','malhaOUTRAS','malhaSPM','malhaSPI','malhaSPA','malhaSP'];
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = () => {
   const d = L.DomUtil.create('div', 'legend-map');
@@ -530,36 +571,37 @@ layerPanel.onAdd = () => {
   div.innerHTML = `
     <h4>Camadas do mapa</h4>
     <div class="layer-group">
-      <label class="master"><input id="grpObitos" type="checkbox" checked /> Óbitos</label>
+      <label class="master"><input id="grpObitos" type="checkbox" /> Óbitos</label>
       <div class="layer-items">
-        <label><input id="lyObitosPoints" type="checkbox" checked /> Pontos</label>
+        <label><input id="lyObitosPoints" type="checkbox" /> Pontos</label>
         <label><input id="lyObitosMicros" type="checkbox" /> Micropontos</label>
-        <label><input id="lyObitosYear" type="checkbox" checked /> Mostrar por ano do painel</label>
+        <label><input id="lyObitosYear" type="checkbox" /> Mostrar por ano do painel</label>
       </div>
     </div>
     <div class="layer-group">
-      <label class="master"><input id="grpSinistros" type="checkbox" checked /> Sinistros</label>
+      <label class="master"><input id="grpSinistros" type="checkbox" /> Sinistros</label>
       <div class="layer-items">
         <label><input id="lySinistrosPoints" type="checkbox" /> Pontos</label>
-        <label><input id="lySinistrosMicros" type="checkbox" checked /> Micropontos</label>
-        <label><input id="lySinistrosYear" type="checkbox" checked /> Mostrar por ano do painel</label>
+        <label><input id="lySinistrosMicros" type="checkbox" /> Micropontos</label>
+        <label><input id="lySinistrosYear" type="checkbox" /> Mostrar por ano do painel</label>
       </div>
     </div>
     <div class="layer-group">
-      <label class="master"><input id="grpHeat" type="checkbox" checked /> Mapas de calor</label>
+      <label class="master"><input id="grpHeat" type="checkbox" /> Mapas de calor</label>
       <div class="layer-items">
         <label><input id="lyHeatObitos" type="checkbox" /> Óbitos</label>
-        <label><input id="lyHeatSinistros" type="checkbox" checked /> Sinistros</label>
-        <label><input id="lyHeatYear" type="checkbox" checked /> Mostrar por ano do painel</label>
+        <label><input id="lyHeatSinistros" type="checkbox" /> Sinistros</label>
+        <label><input id="lyHeatYear" type="checkbox" /> Mostrar por ano do painel</label>
       </div>
     </div>
     <div class="layer-group">
-      <label class="master"><input id="grpMalha" type="checkbox" checked /> Malha rodoviária estadual</label>
+      <label class="master"><input id="grpMalha" type="checkbox" /> Malha rodoviária estadual</label>
       <div class="layer-items">
-        <label><input id="lyMalhaSP" type="checkbox" checked /> SP</label>
-        <label><input id="lyMalhaSPA" type="checkbox" checked /> SPA</label>
-        <label><input id="lyMalhaSPI" type="checkbox" checked /> SPI</label>
-        <label><input id="lyMalhaSPM" type="checkbox" checked /> SPM</label>
+        <label><input id="lyMalhaSP" type="checkbox" /> SP</label>
+        <label><input id="lyMalhaSPA" type="checkbox" /> SPA</label>
+        <label><input id="lyMalhaSPI" type="checkbox" /> SPI</label>
+        <label><input id="lyMalhaSPM" type="checkbox" /> SPM</label>
+        <label><input id="lyMalhaOUTRAS" type="checkbox" /> BR / outras</label>
       </div>
     </div>`;
   L.DomEvent.disableClickPropagation(div);
@@ -591,12 +633,53 @@ function pointPopup(ft, title, family='sinistros') {
     `Município: ${ft.properties.municipio || '-'}<br>` +
     `Categoria: <span style="color:${style.color};font-weight:700">${style.label}</span>`;
 }
+function roadCategoryFromName(roadName) {
+  const normalized = String(roadName || '').toUpperCase().trim();
+  const feature = (malha.features || []).find(f => String(f?.properties?.Rodovia || '').toUpperCase().trim() === normalized);
+  const raw = String(feature?.properties?.categoria_der || '').toUpperCase().trim();
+  if (['SP', 'SPA', 'SPI', 'SPM'].includes(raw)) return raw;
+  if (normalized.startsWith('BR ')) return 'OUTRAS';
+  return raw || 'OUTRAS';
+}
+function roadCategoryMatch(feature, cat) {
+  return roadCategoryFromName(feature?.properties?.Rodovia) === cat;
+}
+function syncRoadLayerPanelFromFilter() {
+  const selectedRoad = fltRoad.value || state.road || '';
+  const hasRoadSelection = !!selectedRoad;
+  const showAllRoads = selectedRoad === 'ALL';
+  const selectedCat = (!showAllRoads && hasRoadSelection) ? roadCategoryFromName(selectedRoad) : null;
+
+  state.showMalhaGroup = hasRoadSelection;
+  state.showMalhaSP = showAllRoads || selectedCat === 'SP';
+  state.showMalhaSPA = showAllRoads || selectedCat === 'SPA';
+  state.showMalhaSPI = showAllRoads || selectedCat === 'SPI';
+  state.showMalhaSPM = showAllRoads || selectedCat === 'SPM';
+  state.showMalhaOUTRAS = showAllRoads || selectedCat === 'OUTRAS';
+
+  const master = document.getElementById('grpMalha');
+  const flagMap = {
+    lyMalhaSP: state.showMalhaSP,
+    lyMalhaSPA: state.showMalhaSPA,
+    lyMalhaSPI: state.showMalhaSPI,
+    lyMalhaSPM: state.showMalhaSPM,
+    lyMalhaOUTRAS: state.showMalhaOUTRAS
+  };
+  if (master) {
+    master.checked = hasRoadSelection;
+    master.indeterminate = false;
+  }
+  Object.entries(flagMap).forEach(([id, checked]) => {
+    const el = document.getElementById(id);
+    if (el) el.checked = checked;
+  });
+}
 function bindLayerPanel() {
   const groups = [
     { master: 'grpObitos', groupKey: 'showObitosGroup', children: [['lyObitosPoints', 'showObitosPoints'], ['lyObitosMicros', 'showObitosMicros'], ['lyObitosYear', 'obitosUseYear']] },
     { master: 'grpSinistros', groupKey: 'showSinistrosGroup', children: [['lySinistrosPoints', 'showSinistrosPoints'], ['lySinistrosMicros', 'showSinistrosMicros'], ['lySinistrosYear', 'sinistrosUseYear']] },
     { master: 'grpHeat', groupKey: 'showHeatGroup', children: [['lyHeatObitos', 'showHeatObitos'], ['lyHeatSinistros', 'showHeatSinistros'], ['lyHeatYear', 'heatUseYear']] },
-    { master: 'grpMalha', groupKey: 'showMalhaGroup', children: [['lyMalhaSP', 'showMalhaSP'], ['lyMalhaSPA', 'showMalhaSPA'], ['lyMalhaSPI', 'showMalhaSPI'], ['lyMalhaSPM', 'showMalhaSPM']] }
+    { master: 'grpMalha', groupKey: 'showMalhaGroup', children: [['lyMalhaSP', 'showMalhaSP'], ['lyMalhaSPA', 'showMalhaSPA'], ['lyMalhaSPI', 'showMalhaSPI'], ['lyMalhaSPM', 'showMalhaSPM'], ['lyMalhaOUTRAS', 'showMalhaOUTRAS']] }
   ];
   groups.forEach(cfg => {
     const master = document.getElementById(cfg.master);
@@ -632,6 +715,7 @@ function activeLegendId() {
   if (state.showMalhaGroup && state.showMalhaSPA) visible.push('malhaSPA');
   if (state.showMalhaGroup && state.showMalhaSPI) visible.push('malhaSPI');
   if (state.showMalhaGroup && state.showMalhaSPM) visible.push('malhaSPM');
+  if (state.showMalhaGroup && state.showMalhaOUTRAS) visible.push('malhaOUTRAS');
   if (state.showHeatGroup && state.showHeatSinistros) visible.push('heatSinistros');
   if (state.showHeatGroup && state.showHeatObitos) visible.push('heatObitos');
   if (state.showSinistrosGroup && state.showSinistrosPoints) visible.push('sinistrosPoints');
@@ -662,7 +746,7 @@ function drawMap(rows, segs) {
     if (!(state.showMalhaGroup && enabled)) return;
     const lyr = L.geoJSON({
       type: 'FeatureCollection',
-      features: featureCollection.features.filter(f => f.properties.categoria_der === cat)
+      features: featureCollection.features.filter(f => roadCategoryMatch(f, cat))
     }, {
       pane: 'paneMalha',
       style: f => {
@@ -687,6 +771,7 @@ function drawMap(rows, segs) {
   addMalhaCategoria('SPA', overlayGroups.malhaSPA, state.showMalhaSPA);
   addMalhaCategoria('SPI', overlayGroups.malhaSPI, state.showMalhaSPI);
   addMalhaCategoria('SPM', overlayGroups.malhaSPM, state.showMalhaSPM);
+  addMalhaCategoria('OUTRAS', overlayGroups.malhaOUTRAS, state.showMalhaOUTRAS);
 
   roadLayer = visibleBounds;
   if (visibleBounds.getBounds().isValid()) mapa.fitBounds(visibleBounds.getBounds(), { padding: [18, 18] });
@@ -769,7 +854,14 @@ function currentPeriodLabel() {
   return state.year === 'ALL' ? '2014 – 2026' : String(state.year);
 }
 
-function chartLayout(title) {
+function metricAxisTitle(metric) {
+  if (metric === 'sinistros') return 'Sinistros (ocorrências)';
+  if (metric === 'obitos') return 'Óbitos (vítimas)';
+  if (metric === 'sinistros_por_km') return 'Sinistros por km (ocorrências/km)';
+  return 'Letalidade (%)';
+}
+
+function chartLayout(title, xTitle='', yTitle='') {
   return {
     title: { text: title, x: 0.02 },
     paper_bgcolor: 'white',
@@ -777,14 +869,17 @@ function chartLayout(title) {
     font: { family: 'Inter, Segoe UI, sans-serif', size: 12, color: '#1f2937' },
     margin: { l: 70, r: 20, t: 54, b: 54 },
     height: 290,
-    legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' }
+    legend: { orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' },
+    xaxis: { title: xTitle, automargin: true },
+    yaxis: { title: yTitle, automargin: true }
   };
 }
 
 function renderTimeSeries() {
   const selectedYear = state.year === 'ALL' ? null : Number(state.year);
+  const canUseMonthly = selectedYear && state.road === 'ALL' && state.eventType === 'ALL';
 
-  if (selectedYear) {
+  if (canUseMonthly) {
     const months = monthlyRows
       .filter(r => Number(r.ano_sinistro) === selectedYear)
       .sort((a, b) => Number(a.mes_sinistro) - Number(b.mes_sinistro));
@@ -805,15 +900,16 @@ function renderTimeSeries() {
         line: { color: '#d52b1e', width: 3 }
       }
     ], {
-      ...chartLayout(`Leitura mensal do ano ${selectedYear}`),
+      ...chartLayout(`Leitura mensal do ano ${selectedYear}`, 'Tempo (mês)', 'Quantidade (ocorrências / vítimas)'),
       height: 240,
       barmode: 'overlay',
       margin: { l: 50, r: 20, t: 54, b: 40 }
     }, { responsive: true, displaylogo: false });
   } else {
-    const years = annualRows.map(r => Number(r.ano_sinistro));
-    const sinistros = annualRows.map(r => Number(r.sinistros || 0));
-    const obitos = annualRows.map(r => Number(r.vitimas_fatais || 0));
+    const scoped = timeSeriesRowsScoped();
+    const years = scoped.map(r => Number(r.ano_sinistro));
+    const sinistros = scoped.map(r => Number(r.sinistros || 0));
+    const obitos = scoped.map(r => Number(r.obitos || 0));
     Plotly.react('timelineChart', [
       {
         type: 'scatter',
@@ -834,11 +930,11 @@ function renderTimeSeries() {
         marker: { size: 7, color: '#d52b1e' }
       }
     ], {
-      ...chartLayout(`Evolução anual do período 2014 – 2026`),
+      ...chartLayout(`Evolução do recorte espacial · ${currentPeriodLabel()}`, 'Tempo (ano)', 'Quantidade (ocorrências / vítimas)'),
       height: 240,
       margin: { l: 50, r: 20, t: 54, b: 40 },
-      xaxis: { title: '', tickmode: 'array', tickvals: years },
-      yaxis: { title: '' }
+      xaxis: { title: 'Tempo (ano)', tickmode: 'array', tickvals: years },
+      yaxis: { title: 'Quantidade (ocorrências / vítimas)' }
     }, { responsive: true, displaylogo: false });
   }
 
@@ -865,7 +961,7 @@ function renderRoadRank(rows) {
     textposition: 'outside',
     cliponaxis: false,
     marker: { color: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }
-  }], chartLayout(`Ranking de rodovias por ${metricNames[state.metric]} · ${currentPeriodLabel()}`), { responsive: true, displaylogo: false });
+  }], chartLayout(`Ranking de rodovias por ${metricNames[state.metric]} · ${currentPeriodLabel()}`, metricAxisTitle(state.metric), 'Rodovia'), { responsive: true, displaylogo: false });
   const rankChart = document.getElementById('roadRankChart');
   rankChart.removeAllListeners?.('plotly_click');
   rankChart.on('plotly_click', ev => {
@@ -877,20 +973,21 @@ function renderRoadRank(rows) {
 
 function renderBubble(rows) {
   const ranked = sortRows(rows, state.metric).slice(0, Math.min(6, rows.length));
+  const total = ranked.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0) || 1;
   Plotly.react('bubbleChart', [{
-    type: 'pie',
-    hole: 0.58,
-    labels: ranked.map(r => r.Rodovia),
-    values: ranked.map(r => Number(r[state.metric] || 0)),
-    textinfo: 'percent',
-    textposition: 'inside',
-    marker: { colors: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) },
-    hovertemplate: '<b>%{label}</b><br>Valor: %{value}<br>Participação: %{percent}<extra></extra>'
-  }], { ...chartLayout(`Participação por ${metricNames[state.metric]} · ${currentPeriodLabel()}`), margin: { l: 10, r: 10, t: 54, b: 10 }, showlegend: true, legend: { orientation: 'v', x: 1.02, y: 0.5 } }, { responsive: true, displaylogo: false });
+    type: 'bar',
+    x: ranked.map(r => r.Rodovia),
+    y: ranked.map(r => (Number(r[state.metric] || 0) / total) * 100),
+    customdata: ranked.map(r => r.Rodovia),
+    text: ranked.map(r => `${fmt((Number(r[state.metric] || 0) / total) * 100, 1)}%`),
+    textposition: 'outside',
+    cliponaxis: false,
+    marker: { color: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }
+  }], { ...chartLayout(`Participação no indicador · ${currentPeriodLabel()}`, 'Rodovia', 'Participação (%)'), margin: { l: 50, r: 20, t: 54, b: 70 } }, { responsive: true, displaylogo: false });
   const bubble = document.getElementById('bubbleChart');
   bubble.removeAllListeners?.('plotly_click');
   bubble.on('plotly_click', ev => {
-    state.road = ev.points[0].label;
+    state.road = ev.points[0].customdata;
     fltRoad.value = state.road;
     renderAll();
   });
@@ -907,7 +1004,7 @@ function renderSegments(segs) {
     textposition: 'outside',
     cliponaxis: false,
     marker: { color: '#0e4d92' }
-  }], chartLayout(state.road === 'ALL' ? `Subtrechos em destaque no mapa · ${currentPeriodLabel()}` : `Subtrechos de ${state.road} · ${currentPeriodLabel()}`), { responsive: true, displaylogo: false });
+  }], chartLayout(state.road === 'ALL' ? `Subtrechos em destaque no mapa · ${currentPeriodLabel()}` : `Subtrechos de ${state.road} · ${currentPeriodLabel()}`, metricAxisTitle(state.metric), 'Subtrecho / posição km'), { responsive: true, displaylogo: false });
 }
 
 function renderCompare(rows) {
@@ -917,14 +1014,14 @@ function renderCompare(rows) {
     const current = Number(r[state.metric] || 0);
     const others = Math.max(0, totalVisible - current);
     Plotly.react('compareChart', [{
-      type: 'pie',
-      hole: 0.56,
-      labels: [state.road, 'Demais rodovias'],
-      values: [current, others],
-      textinfo: 'percent',
-      marker: { colors: ['#0e4d92', '#cbd5e1'] },
-      hovertemplate: '<b>%{label}</b><br>Valor: %{value}<extra></extra>'
-    }], { ...chartLayout(`Participação de ${state.road} · ${currentPeriodLabel()}`), margin: { l: 10, r: 10, t: 54, b: 10 }, showlegend: true, legend: { orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' } }, { responsive: true, displaylogo: false });
+      type: 'bar',
+      x: [state.road, 'Demais rodovias'],
+      y: [current, others],
+      text: [current, others].map(v => state.metric.includes('km') || state.metric.includes('indice') ? fmt(v, 2) : fmt(v)),
+      textposition: 'outside',
+      cliponaxis: false,
+      marker: { color: ['#0e4d92', '#cbd5e1'] }
+    }], { ...chartLayout(`Composição do risco · ${currentPeriodLabel()}`, 'Grupo de rodovias', metricAxisTitle(state.metric)), margin: { l: 50, r: 20, t: 54, b: 60 } }, { responsive: true, displaylogo: false });
   } else {
     const ranked = sortRows(rows, state.metric).slice(0, Math.min(5, rows.length));
     const rankedSum = ranked.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
@@ -933,24 +1030,28 @@ function renderCompare(rows) {
     const labels = ranked.map(r => r.Rodovia).concat(others > 0 ? ['Outras'] : []);
     const values = ranked.map(r => Number(r[state.metric] || 0)).concat(others > 0 ? [others] : []);
     Plotly.react('compareChart', [{
-      type: 'pie',
-      hole: 0.56,
-      labels,
-      values,
-      textinfo: 'percent',
-      marker: { colors: ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed', '#cbd5e1'] },
-      hovertemplate: '<b>%{label}</b><br>Valor: %{value}<extra></extra>'
-    }], { ...chartLayout(`Participação consolidada do painel · ${currentPeriodLabel()}`), margin: { l: 10, r: 10, t: 54, b: 10 }, showlegend: true, legend: { orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' } }, { responsive: true, displaylogo: false });
+      type: 'bar',
+      x: labels,
+      y: values,
+      text: values.map(v => state.metric.includes('km') || state.metric.includes('indice') ? fmt(v, 2) : fmt(v)),
+      textposition: 'outside',
+      cliponaxis: false,
+      marker: { color: ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed', '#cbd5e1'] }
+    }], { ...chartLayout(`Composição consolidada do painel · ${currentPeriodLabel()}`, 'Rodovia / grupo', metricAxisTitle(state.metric)), margin: { l: 50, r: 20, t: 54, b: 70 } }, { responsive: true, displaylogo: false });
   }
 }
 
 function renderAll() {
-  state.eventType = fltEventType.value;
-  state.metric = fltMetric.value;
-  state.order = fltOrder.value;
-  state.year = fltYear.value;
+  state.road = fltRoad.value || 'ALL';
+  state.eventType = fltEventType.value || 'ALL';
+  state.metric = fltMetric.value || 'sinistros';
+  state.order = fltOrder.value || 'desc';
+  state.year = fltYear.value || 'ALL';
   state.topN = Number(fltTopN.value);
-  topNLabel.textContent = `Exibindo Top ${state.topN} · O checkbox do grupo liga ou desliga todas as camadas internas.`;
+  syncRoadLayerPanelFromFilter();
+  topNLabel.textContent = fltRoad.value
+    ? `Exibindo Top ${state.topN} · Camadas da malha sincronizadas com o filtro de rodovia.`
+    : `Exibindo Top ${state.topN} · Selecione uma rodovia para ativar a malha no mapa.`;
 
   const rows = currentRoadRows();
   const segs = currentSegRows();
@@ -963,7 +1064,7 @@ function renderAll() {
   renderCompare(rows);
 }
 
-fltRoad.addEventListener('change', () => { state.road = fltRoad.value; renderAll(); });
+fltRoad.addEventListener('change', () => { state.road = fltRoad.value || 'ALL'; renderAll(); });
 fltEventType.addEventListener('change', renderAll);
 fltMetric.addEventListener('change', renderAll);
 fltOrder.addEventListener('change', renderAll);
@@ -971,11 +1072,11 @@ fltYear.addEventListener('change', renderAll);
 fltTopN.addEventListener('input', renderAll);
 document.getElementById('btnReset').addEventListener('click', () => {
   state.road = 'ALL';
-  fltRoad.value = 'ALL';
-  fltEventType.value = 'ALL';
-  fltMetric.value = 'sinistros';
-  fltOrder.value = 'desc';
-  fltYear.value = 'ALL';
+  fltRoad.value = '';
+  fltEventType.value = '';
+  fltMetric.value = '';
+  fltOrder.value = '';
+  fltYear.value = '';
   fltTopN.value = '8';
   renderAll();
 });
@@ -985,8 +1086,13 @@ document.getElementById('btnReset').addEventListener('click', () => {
     topNLabel.textContent = 'Carregando dados geográficos...';
     await loadGeoData();
     fillRoadOptions();
+    fltRoad.value = state.road;
+    fltEventType.value = state.eventType;
+    fltMetric.value = state.metric;
+    fltOrder.value = state.order;
+    fltYear.value = state.year;
     renderAll();
-    topNLabel.textContent = 'Mapa pronto. Por padrão, apenas a malha viária fica carregada; as demais camadas entram sob demanda.';
+    topNLabel.textContent = 'Mapa pronto. Todas as camadas iniciam desativadas e a malha é ligada ao selecionar uma rodovia.';
     warmGeoAnalytics();
   } catch (err) {
     console.error(err);
@@ -1000,7 +1106,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
 <footer>
   <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
   <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
-  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 17/04/2026 19:44</div>
+  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 17/04/2026 23:54</div>
 </footer>
 
 </body></html>

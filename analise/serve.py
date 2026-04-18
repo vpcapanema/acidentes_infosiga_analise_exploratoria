@@ -31,7 +31,10 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_response(204)
             self.end_headers()
             return
-        super().do_GET()
+        try:
+            super().do_GET()
+        except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
+            pass
 
     def end_headers(self):
         self.send_header("Cache-Control", "public, max-age=3600")

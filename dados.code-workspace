@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "dados"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"powershell.cwd": "acidentes_infosiga_analise_exploratoria"
+	}
+}
