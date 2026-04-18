@@ -96,7 +96,7 @@ footer a{color:#fff;text-decoration:none}
 .map-composite{display:grid;grid-template-columns:minmax(640px,1.2fr) minmax(480px,1fr);gap:18px;align-items:stretch}
 .map-stage{display:flex;flex-direction:column;gap:10px;height:100%}
 .map-stage #map,.map-stage #mapSub{flex:1 1 auto;height:100%;min-height:860px}
-.geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px}
+.geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px;text-align:center;line-height:1.25;display:block;width:100%}
 .plot-host{width:100%;min-height:280px}
 .plot-timeline{min-height:320px;margin-top:8px}
 .layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -238,27 +238,27 @@ footer a{color:#fff;text-decoration:none}
 
         <div class="geo-rail geo-rail-five">
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-chart-column"></i> Panorama macro do fenômeno</h2>
+            <h2 id="subTitleRoadChart"><i class="fa-solid fa-chart-column"></i> Panorama macro do fenômeno</h2>
             <div id="subRoadChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-signal"></i> Subtrechos por classe</h2>
+            <h2 id="subTitleClassChart"><i class="fa-solid fa-signal"></i> Subtrechos por classe</h2>
             <div id="subClassChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-road-circle-exclamation"></i> Subtrechos críticos</h2>
+            <h2 id="subTitleSegmentChart"><i class="fa-solid fa-road-circle-exclamation"></i> Subtrechos críticos</h2>
             <div id="subSegmentChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-chart-pie"></i> Composição dos líderes</h2>
+            <h2 id="subTitleShareChart"><i class="fa-solid fa-chart-pie"></i> Composição dos líderes</h2>
             <div id="subShareChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel span-2">
-            <h2><i class="fa-solid fa-clock"></i> Evolução temporal</h2>
+            <h2 id="subTitleSeriesChart"><i class="fa-solid fa-clock"></i> Evolução temporal</h2>
             <div id="subSeriesChart" class="plot-host plot-timeline"></div>
           </section>
         </div>
@@ -277,6 +277,8 @@ let focusRowsAll = [];
 let focusRowsByType = [];
 let focusRowsByYearType = [];
 let roadYearTypeRows = [];
+let monthlyRows2 = [];
+let monthlyTypeRows2 = [];
 let obitosPts2 = { type: 'FeatureCollection', features: [] };
 let sinistrosPts2 = { type: 'FeatureCollection', features: [] };
 let heatSinistros2 = { points: [] };
@@ -307,6 +309,8 @@ async function ensureSubAnalyticsLoaded() {
     .then((data) => {
       focusRowsByYearType = data.focusRowsByYearType || [];
       roadYearTypeRows = data.roadYearTypeRows || [];
+      monthlyRows2 = data.monthlyRows || [];
+      monthlyTypeRows2 = data.monthlyTypeRows || [];
       subAnalyticsLoaded = true;
     })
     .finally(() => { subAnalyticsLoading = null; });
@@ -343,6 +347,13 @@ function warmSubOverlays() {
   else setTimeout(run, 700);
 }
 const eventTypeNames2 = { ALL: 'Todos', COLISAO: 'Colisão', CHOQUE: 'Choque', ATROPELAMENTO: 'Atropelamento', OUTROS: 'Outros' };
+const eventTypeOrder2 = ['COLISAO', 'CHOQUE', 'ATROPELAMENTO', 'OUTROS'];
+const eventTypeColors2 = {
+  COLISAO: '#0e4d92',
+  CHOQUE: '#0891b2',
+  ATROPELAMENTO: '#7c3aed',
+  OUTROS: '#475569'
+};
 const metricNames2 = { sinistros: 'Sinistros', obitos: 'Óbitos', sinistros_por_km: 'Sinistros/km', indice_letalidade: 'Letalidade (%)' };
 const viewModeNames2 = {
   malha: 'Apenas malha viária',
@@ -378,6 +389,16 @@ const subViewMode = document.getElementById('subViewMode');
 const subYear = document.getElementById('subYear');
 const subKpis = document.getElementById('sub-kpis');
 const subCaption = document.getElementById('sub-caption');
+const subTitleRoadChart = document.getElementById('subTitleRoadChart');
+const subTitleClassChart = document.getElementById('subTitleClassChart');
+const subTitleSegmentChart = document.getElementById('subTitleSegmentChart');
+const subTitleShareChart = document.getElementById('subTitleShareChart');
+const subTitleSeriesChart = document.getElementById('subTitleSeriesChart');
+
+function setPanelTitle(el, iconClass, text) {
+  if (!el) return;
+  el.innerHTML = `<i class="${iconClass}"></i> ${text}`;
+}
 
 function syncViewState2(origin='render') {
   const ratioMetric = ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric);
@@ -445,9 +466,16 @@ function typeStyle2(kind, family='sinistros') {
   if (k.includes('COLISAO')) return { symbol: '●', color: '#0e4d92', label: 'Colisão' };
   return { symbol: '■', color: '#475569', label: 'Outros' };
 }
+function normalizeEventType2(row) {
+  const kind = String(row?.evento_tipo || row?.tp_sinistro_primario || '').toUpperCase();
+  if (kind.includes('ATROPEL')) return 'ATROPELAMENTO';
+  if (kind.includes('CHOQUE')) return 'CHOQUE';
+  if (kind.includes('COLISAO')) return 'COLISAO';
+  return 'OUTROS';
+}
 function sameType2(row, eventType=state2.eventType) {
   if (eventType === 'ALL') return true;
-  return String(row.evento_tipo || row.tp_sinistro_primario || '').toUpperCase() === eventType;
+  return normalizeEventType2(row) === eventType;
 }
 function focusRoadNames2() {
   return [...new Set((focusMalha.features || []).map(f => f.properties.Rodovia))];
@@ -455,6 +483,18 @@ function focusRoadNames2() {
 function metricValue2(row, metric=state2.metric) {
   const value = Number((row || {})[metric] || 0);
   return Number.isFinite(value) ? value : 0;
+}
+function metricFromTotals2(sinistros, obitos, kmTotal, metric=state2.metric) {
+  if (metric === 'sinistros') return Number(sinistros || 0);
+  if (metric === 'obitos') return Number(obitos || 0);
+  if (metric === 'sinistros_por_km') return Number(kmTotal || 0) > 0 ? Number(sinistros || 0) / Number(kmTotal || 0) : 0;
+  return Number(sinistros || 0) > 0 ? (Number(obitos || 0) / Number(sinistros || 0)) * 100 : 0;
+}
+function currentPeriodLabel2() {
+  return state2.year === 'ALL' ? '2014 – 2026' : String(state2.year);
+}
+function currentRoadLabel2() {
+  return state2.road === 'ALL' ? 'Todas as rodovias do recorte' : state2.road;
 }
 function isPositiveMetric2(row, metric=state2.metric) {
   return metricValue2(row, metric) > 0;
@@ -528,26 +568,80 @@ function syncFilterOptions2() {
   state2.viewMode = rebuildOptions2(subViewMode, modes, state2.viewMode);
   syncViewState2('render');
 }
-function currentRows2() {
+function currentRoadBaseRows2() {
   const pool = roadPool2();
+  return state2.year === 'ALL'
+    ? roadYearTypeRows.filter(r => sameType2(r) && pool.includes(r.Rodovia))
+    : roadYearTypeRows.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
+}
+function topRoadNamesForCurrentScope2(limit=6) {
+  return aggregateRoadRows2(currentRoadBaseRows2())
+    .sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0))
+    .slice(0, limit)
+    .map(r => r.Rodovia);
+}
+function currentRows2() {
   let base = state2.year === 'ALL'
-    ? focusRowsByType.filter(r => sameType2(r) && pool.includes(r.Rodovia))
-    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
-  if (state2.road !== 'ALL') base = base.filter(r => r.Rodovia === state2.road);
-  return base;
+    ? focusRowsByType.filter(r => sameType2(r))
+    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year));
+  if (state2.road === 'ALL') {
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    return base.filter(r => keep.has(r.Rodovia));
+  }
+  return base.filter(r => r.Rodovia === state2.road);
 }
 function roadRanking2() {
-  const pool = roadPool2();
-  let rows = state2.year === 'ALL'
-    ? aggregateRoadRows2(roadYearTypeRows.filter(r => sameType2(r) && pool.includes(r.Rodovia)))
-    : roadYearTypeRows.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
-  if (state2.road !== 'ALL') rows = rows.filter(r => r.Rodovia === state2.road);
+  let rows = aggregateRoadRows2(currentRoadBaseRows2());
+  if (state2.road === 'ALL') {
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    rows = rows.filter(r => keep.has(r.Rodovia));
+  } else {
+    rows = rows.filter(r => r.Rodovia === state2.road);
+  }
   return [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0));
 }
+function roadEventRowsForCharts2() {
+  let base = currentRoadBaseRows2();
+  if (state2.road === 'ALL') {
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    base = base.filter(r => keep.has(r.Rodovia));
+  } else {
+    base = base.filter(r => r.Rodovia === state2.road);
+  }
+  return base;
+}
+function segmentEventRowsForCharts2(rows) {
+  let base = state2.year === 'ALL'
+    ? focusRowsByType.filter(r => sameType2(r))
+    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year));
+  if (state2.road === 'ALL') {
+    const keepRoads = new Set(topRoadNamesForCurrentScope2(6));
+    base = base.filter(r => keepRoads.has(r.Rodovia));
+  } else {
+    base = base.filter(r => r.Rodovia === state2.road);
+  }
+  const displayed = [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 6).map(r => r.trecho_id || r.Subtrecho);
+  const keepSegments = new Set(state2.highlightSegment ? [state2.highlightSegment] : displayed);
+  return base.filter(r => keepSegments.has(r.trecho_id || r.Subtrecho));
+}
+function eventBreakdownForRows2(rows) {
+  const totals = { COLISAO: 0, CHOQUE: 0, ATROPELAMENTO: 0, OUTROS: 0 };
+  rows.forEach(r => {
+    const evt = normalizeEventType2(r);
+    totals[evt] += Math.max(0, metricValue2(r, state2.metric));
+  });
+  return eventTypeOrder2
+    .filter(evt => totals[evt] > 0)
+    .map(evt => ({ key: evt, label: eventTypeNames2[evt], value: totals[evt], color: eventTypeColors2[evt] }));
+}
 function seriesRows2() {
-  const pool = roadPool2();
-  let rows = roadYearTypeRows.filter(r => sameType2(r) && pool.includes(r.Rodovia));
-  if (state2.road !== 'ALL') rows = rows.filter(r => r.Rodovia === state2.road);
+  let rows = currentRoadBaseRows2();
+  if (state2.road === 'ALL') {
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    rows = rows.filter(r => keep.has(r.Rodovia));
+  } else {
+    rows = rows.filter(r => r.Rodovia === state2.road);
+  }
   const byYear = {};
   rows.forEach(r => {
     const y = String(r.ano_sinistro);
@@ -595,7 +689,7 @@ function metricAxisTitle2(metric) {
 }
 function layout2(title, xTitle='', yTitle='') {
   return {
-    title: { text: title, x: 0.02 },
+    title: { text: title, x: 0.5, xanchor: 'center' },
     paper_bgcolor: 'white',
     plot_bgcolor: 'white',
     font: { family: 'Inter, Segoe UI, sans-serif', size: 12, color: '#1f2937' },
@@ -903,59 +997,75 @@ function severityBucket2(value, maxValue) {
   return 'Baixo';
 }
 function renderRoadChart2(rows) {
-  const scoped = state2.road === 'ALL' ? currentRows2() : currentRows2().filter(r => r.Rodovia === state2.road);
-  const maxMetric = Math.max(...scoped.map(r => Number(r[state2.metric] || 0)), 1);
-  const buckets = ['Baixo', 'Moderado', 'Alto', 'Crítico'];
-  const totals = { 'Baixo': 0, 'Moderado': 0, 'Alto': 0, 'Crítico': 0 };
-  scoped.forEach(r => {
-    const bucket = severityBucket2(Number(r[state2.metric] || 0), maxMetric);
-    totals[bucket] += Number(r[state2.metric] || 0);
-  });
+  const ranked = roadRanking2().slice(0, 6).reverse();
+  const rankTitle = `Ranking de rodovias x ${metricNames2[state2.metric]}<br>em ${currentPeriodLabel2()}`;
+  setPanelTitle(subTitleRoadChart, 'fa-solid fa-trophy', rankTitle);
+  const maxMetric = Math.max(...ranked.map(r => Number(r[state2.metric] || 0)), 1);
   Plotly.react('subRoadChart', [{
     type: 'bar',
-    x: buckets,
-    y: buckets.map(label => totals[label] || 0),
-    text: buckets.map(label => ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric) ? fmt2(totals[label] || 0, 2) : fmt2(totals[label] || 0)),
-    textposition: 'outside',
+    orientation: 'h',
+    x: ranked.map(r => Number(r[state2.metric] || 0)),
+    y: ranked.map(r => r.Rodovia),
+    text: ranked.map(r => ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric) ? fmt2(r[state2.metric], 2) : fmt2(r[state2.metric])),
+    textposition: 'inside',
+    insidetextanchor: 'middle',
+    textfont: { color: '#ffffff', size: 12 },
     cliponaxis: false,
-    marker: { color: ['#facc15', '#f97316', '#b91c1c', '#7f1d1d'] }
-  }], { ...layout2(`Panorama macro · ${eventTypeNames2[state2.eventType]}`, 'Classe de criticidade', metricAxisTitle2(state2.metric)), margin: { l: 50, r: 20, t: 54, b: 50 } }, { responsive: true, displaylogo: false });
+    marker: { color: ranked.map(r => pickColor2(Number(r[state2.metric] || 0), maxMetric)) }
+  }], { ...layout2('', metricAxisTitle2(state2.metric), 'Rodovia'), margin: { l: 70, r: 20, t: 24, b: 54 } }, { responsive: true, displaylogo: false });
+  const el = document.getElementById('subRoadChart');
+  if (el.removeAllListeners) el.removeAllListeners('plotly_click');
+  el.on('plotly_click', (evt) => {
+    const road = evt.points?.[0]?.y;
+    if (!road) return;
+    state2.road = road;
+    subRoad.value = road;
+    state2.highlightRoad = road;
+    state2.highlightSegment = null;
+    renderSubDash();
+  });
 }
 function renderClassChart2(rows) {
-  const scoped = state2.road === 'ALL' ? rows : rows.filter(r => r.Rodovia === state2.road);
-  const maxMetric = Math.max(...scoped.map(r => Number(r[state2.metric] || 0)), 1);
-  const counts = { 'Baixo': 0, 'Moderado': 0, 'Alto': 0, 'Crítico': 0 };
-  scoped.forEach(r => {
-    const bucket = severityBucket2(Number(r[state2.metric] || 0), maxMetric);
-    counts[bucket] += 1;
-  });
-  const labels = ['Baixo', 'Moderado', 'Alto', 'Crítico'];
+  const parts = eventBreakdownForRows2(roadEventRowsForCharts2());
+  const classTitle = `Percentual dos tipos de ${metricNames2[state2.metric]}<br>em ${currentPeriodLabel2()}`;
+  setPanelTitle(subTitleClassChart, 'fa-solid fa-circle-notch', classTitle);
   Plotly.react('subClassChart', [{
-    type: 'bar',
-    x: labels,
-    y: labels.map(label => counts[label] || 0),
-    marker: { color: ['#facc15', '#f97316', '#b91c1c', '#7f1d1d'] },
-    text: labels.map(label => counts[label] || 0),
-    textposition: 'outside',
-    cliponaxis: false
-  }], { ...layout2('Subtrechos por classe', 'Classe de criticidade', 'Subtrechos (quantidade)'), margin: { l: 50, r: 20, t: 54, b: 50 } }, { responsive: true, displaylogo: false });
+    type: 'pie',
+    hole: 0.58,
+    labels: parts.map(r => r.label),
+    values: parts.map(r => r.value),
+    customdata: parts.map(r => r.key),
+    textinfo: 'percent',
+    textposition: 'inside',
+    marker: { colors: parts.map(r => r.color) },
+    hovertemplate: '<b>%{label}</b><br>Valor: %{value}<br>Participação: %{percent}<extra></extra>'
+  }], { ...layout2(''), margin: { l: 10, r: 10, t: 24, b: 10 }, showlegend: true, legend: { orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' } }, { responsive: true, displaylogo: false });
+  const el = document.getElementById('subClassChart');
+  if (el.removeAllListeners) el.removeAllListeners('plotly_click');
+  el.on('plotly_click', (evt) => {
+    state2.eventType = evt.points?.[0]?.customdata || 'ALL';
+    subEventType.value = state2.eventType;
+    renderSubDash();
+  });
 }
 function renderSegChart2(rows, roads) {
-  const baseRoad = state2.road !== 'ALL' ? state2.road : null;
-  const scoped = baseRoad ? rows.filter(r => r.Rodovia === baseRoad) : rows;
-  const top = [...scoped].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 10).reverse();
+  const top = [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 6).reverse();
   const maxMetric = Math.max(...top.map(r => Number(r[state2.metric] || 0)), 1);
+  const segmentTitle = `Nº de ${metricNames2[state2.metric]} por subtrecho crítico da rodovia ${currentRoadLabel2()} em ${currentPeriodLabel2()}`;
+  setPanelTitle(subTitleSegmentChart, 'fa-solid fa-road-circle-exclamation', segmentTitle);
   Plotly.react('subSegmentChart', [{
     type: 'bar',
     orientation: 'h',
     x: top.map(r => Number(r[state2.metric] || 0)),
-    y: top.map(r => `km ${fmt2(r.KmInicial, 2)}–${fmt2(r.KmFinal, 2)}`),
+    y: top.map(r => `km ${fmt2(r.KmInicial, 2)} – km ${fmt2(r.KmFinal, 2)}`),
     text: top.map(r => ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric) ? fmt2(r[state2.metric], 2) : fmt2(r[state2.metric])),
-    textposition: 'outside',
+    textposition: 'inside',
+    insidetextanchor: 'middle',
+    textfont: { color: '#ffffff', size: 12 },
     cliponaxis: false,
     customdata: top.map(r => [r.trecho_id, r.Rodovia]),
     marker: { color: top.map(r => pickColor2(Number(r[state2.metric] || 0), maxMetric)) }
-  }], layout2(baseRoad ? `Subtrechos críticos · ${baseRoad}` : 'Subtrechos críticos', metricAxisTitle2(state2.metric), 'Subtrecho / posição km'), { responsive: true, displaylogo: false });
+  }], layout2('', metricAxisTitle2(state2.metric), 'Subtrecho / posição km'), { responsive: true, displaylogo: false });
   const el = document.getElementById('subSegmentChart');
   if (el.removeAllListeners) el.removeAllListeners('plotly_click');
   el.on('plotly_click', (evt) => {
@@ -969,38 +1079,79 @@ function renderSegChart2(rows, roads) {
   });
 }
 function renderSeries2(rows) {
-  Plotly.react('subSeriesChart', [{
-    type: 'scatter', mode: 'lines+markers',
-    x: rows.map(r => r.ano_sinistro),
-    y: rows.map(r => Number(r[state2.metric] || 0)),
-    line: { color: '#0e4d92', width: 3 },
-    marker: { size: 7, color: '#0e4d92' }
-  }], { ...layout2(`Evolução temporal · ${metricNames2[state2.metric]}`, 'Tempo (ano)', metricAxisTitle2(state2.metric)), height: 240, margin: { l: 50, r: 20, t: 54, b: 40 } }, { responsive: true, displaylogo: false });
+  const selectedYear = state2.year === 'ALL' ? null : Number(state2.year);
+  const useMonthly = Number.isFinite(selectedYear) && selectedYear !== null;
+  const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const seriesTitle = `Dinâmica temporal de ${metricNames2[state2.metric]} em ${currentPeriodLabel2()}`;
+  setPanelTitle(subTitleSeriesChart, 'fa-solid fa-clock', seriesTitle);
+
+  if (useMonthly) {
+    let scoped = monthlyTypeRows2.filter(r => Number(r.ano_sinistro) === selectedYear && (state2.road === 'ALL' || !r.Rodovia || r.Rodovia === 'ALL' || r.Rodovia === state2.road) && (state2.eventType === 'ALL' || sameType2(r)));
+    if (!scoped.length) {
+      scoped = monthlyRows2.filter(r => Number(r.ano_sinistro) === selectedYear).map(r => ({
+        ano_sinistro: r.ano_sinistro,
+        mes_sinistro: r.mes_sinistro,
+        evento_tipo: state2.eventType === 'ALL' ? 'ALL' : state2.eventType,
+        sinistros: Number(r.sinistros || 0),
+        obitos: Number(r.fatais || 0),
+        km_total: 1
+      }));
+    }
+    const activeTypes = eventTypeOrder2.filter(evt => scoped.some(r => normalizeEventType2(r) === evt));
+    const traces = (activeTypes.length ? activeTypes : ['ALL']).map(evt => {
+      const values = Array.from({ length: 12 }, (_, idx) => idx + 1).map(monthNum => {
+        const bucket = scoped.filter(r => (evt === 'ALL' || normalizeEventType2(r) === evt || r.evento_tipo === 'ALL') && Number(r.mes_sinistro) === monthNum);
+        const sinistros = bucket.reduce((acc, r) => acc + Number(r.sinistros || 0), 0);
+        const obitos = bucket.reduce((acc, r) => acc + Number(r.obitos || 0), 0);
+        const kmTotal = bucket.reduce((acc, r) => acc + Number(r.km_total || 0), 0);
+        return metricFromTotals2(sinistros, obitos, kmTotal, state2.metric);
+      });
+      return {
+        type: 'bar',
+        name: evt === 'ALL' ? metricNames2[state2.metric] : eventTypeNames2[evt],
+        x: monthLabels,
+        y: values,
+        marker: { color: evt === 'ALL' ? '#0e4d92' : eventTypeColors2[evt] }
+      };
+    });
+    Plotly.react('subSeriesChart', traces, {
+      ...layout2('', 'Tempo (mês)', metricAxisTitle2(state2.metric)),
+      height: 260,
+      barmode: 'stack',
+      margin: { l: 60, r: 170, t: 24, b: 56 },
+      legend: { orientation: 'v', x: 1.02, y: 1, xanchor: 'left', yanchor: 'top' }
+    }, { responsive: true, displaylogo: false });
+  } else {
+    Plotly.react('subSeriesChart', [{
+      type: 'scatter', mode: 'lines+markers',
+      name: metricNames2[state2.metric],
+      x: rows.map(r => r.ano_sinistro),
+      y: rows.map(r => Number(r[state2.metric] || 0)),
+      line: { color: '#0e4d92', width: 3 },
+      marker: { size: 7, color: '#0e4d92' }
+    }], { ...layout2('', 'Tempo (ano)', metricAxisTitle2(state2.metric)), height: 260, showlegend: false, margin: { l: 60, r: 40, t: 24, b: 56 } }, { responsive: true, displaylogo: false });
+  }
 }
 function renderShare2(rows) {
-  const baseRoad = state2.road !== 'ALL' ? state2.road : null;
-  const scoped = baseRoad ? rows.filter(r => r.Rodovia === baseRoad) : rows;
-  const top = [...scoped].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 5);
+  const parts = eventBreakdownForRows2(segmentEventRowsForCharts2(rows));
+  const shareTitle = `Percentual dos tipos de ${metricNames2[state2.metric]}<br>em ${currentPeriodLabel2()}`;
+  setPanelTitle(subTitleShareChart, 'fa-solid fa-chart-pie', shareTitle);
   Plotly.react('subShareChart', [{
     type: 'pie',
     hole: 0.58,
-    labels: top.map(r => `${r.Rodovia} · km ${fmt2(r.KmInicial, 1)}`),
-    values: top.map(r => Number(r[state2.metric] || 0)),
-    customdata: top.map(r => [r.trecho_id, r.Rodovia]),
+    labels: parts.map(r => r.label),
+    values: parts.map(r => r.value),
+    customdata: parts.map(r => r.key),
     textinfo: 'percent',
     textposition: 'inside',
-    marker: { color: ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed'] },
+    marker: { colors: parts.map(r => r.color) },
     hovertemplate: '<b>%{label}</b><br>Valor: %{value}<br>Participação: %{percent}<extra></extra>'
-  }], { ...layout2('Composição dos líderes'), margin: { l: 10, r: 10, t: 54, b: 10 }, showlegend: true, legend: { orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' } }, { responsive: true, displaylogo: false });
+  }], { ...layout2(''), margin: { l: 10, r: 10, t: 24, b: 10 }, showlegend: true, legend: { orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' } }, { responsive: true, displaylogo: false });
   const el = document.getElementById('subShareChart');
   if (el.removeAllListeners) el.removeAllListeners('plotly_click');
   el.on('plotly_click', (evt) => {
-    const data = evt.points?.[0]?.customdata || [];
-    if (!data.length) return;
-    state2.road = data[1];
-    subRoad.value = state2.road;
-    state2.highlightSegment = data[0];
-    state2.highlightRoad = data[1];
+    state2.eventType = evt.points?.[0]?.customdata || 'ALL';
+    subEventType.value = state2.eventType;
     renderSubDash();
   });
 }
@@ -1064,7 +1215,7 @@ document.getElementById('subReset').addEventListener('click', () => {
 <footer>
   <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
   <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
-  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 18/04/2026 00:22</div>
+  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 18/04/2026 01:49</div>
 </footer>
 
 </body></html>

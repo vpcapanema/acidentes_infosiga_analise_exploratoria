@@ -57,6 +57,35 @@ rod = j("rodovias_rank.json")
 trc = j("trechos_rank.json")
 subtr = j("subtrechos_analise.json")
 
+
+def first_existing_col(frame, names):
+    for name in names:
+        if name in frame.columns:
+            return name
+    return None
+
+
+def normalize_event_type_py(value):
+    kind = str(value or "").upper()
+    if "ATROPEL" in kind:
+        return "ATROPELAMENTO"
+    if "CHOQUE" in kind:
+        return "CHOQUE"
+    if "COLISAO" in kind or "COLISÃO" in kind:
+        return "COLISAO"
+    return "OUTROS"
+
+
+def fatal_flag_py(value):
+    if pd.isna(value):
+        return 0
+    if isinstance(value, bool):
+        return int(value)
+    if isinstance(value, (int, float)):
+        return int(float(value) > 0)
+    return 1 if str(value).strip().upper() in {"1", "S", "SIM", "TRUE", "T", "YES", "Y"} else 0
+
+
 def br(n):
     """Formata número inteiro no padrão brasileiro (1.234.567)."""
     return f"{int(n):,}".replace(",", ".")
@@ -566,7 +595,7 @@ footer a{color:#fff;text-decoration:none}
 .map-composite{display:grid;grid-template-columns:minmax(640px,1.2fr) minmax(480px,1fr);gap:18px;align-items:stretch}
 .map-stage{display:flex;flex-direction:column;gap:10px;height:100%}
 .map-stage #map,.map-stage #mapSub{flex:1 1 auto;height:100%;min-height:860px}
-.geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px}
+.geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px;text-align:center;line-height:1.25;display:block;width:100%}
 .plot-host{width:100%;min-height:280px}
 .plot-timeline{min-height:320px;margin-top:8px}
 .layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
@@ -990,6 +1019,51 @@ rel_body = f"""
 malha_obj = json.load(open(OUT / "malha_topN.geojson", encoding="utf-8"))
 road_names_geo = sorted({f_["properties"]["Rodovia"] for f_ in malha_obj["features"]})
 road_rows_geo = [r_ for r_ in rod["all"] if r_["Rodovia"] in road_names_geo]
+road_km_lookup = {
+    str(r_.get("Rodovia", "")).strip(): float(r_.get("km_total") or 0)
+    for r_ in road_rows_geo
+}
+monthly_type_rows = []
+eventos_path = OUT / "eventos_rodovias.parquet"
+total_km_network = sum(v for v in road_km_lookup.values() if float(v or 0) > 0)
+if eventos_path.exists():
+    try:
+        evt = pd.read_parquet(eventos_path)
+        col_road = first_existing_col(evt, ["Rodovia", "rodovia"])
+        col_year = first_existing_col(evt, ["ano_sinistro", "ano"])
+        col_month = first_existing_col(evt, ["mes_sinistro", "mes"])
+        col_type = first_existing_col(evt, ["evento_tipo", "tp_sinistro_primario", "tipo_evento"])
+        col_fatal = first_existing_col(evt, ["tem_fatal", "fatal", "houve_obito", "obito"])
+        if all([col_year, col_month, col_type]):
+            keep_cols = ([col_road] if col_road else []) + [col_year, col_month, col_type] + ([col_fatal] if col_fatal else [])
+            evt = evt[keep_cols].copy()
+            evt["Rodovia"] = evt[col_road].astype(str).str.strip() if col_road else 'ALL'
+            evt["ano_sinistro"] = pd.to_numeric(evt[col_year], errors="coerce")
+            evt["mes_sinistro"] = pd.to_numeric(evt[col_month], errors="coerce")
+            evt["evento_tipo"] = evt[col_type].map(normalize_event_type_py)
+            evt["sinistros"] = 1
+            evt["obitos"] = evt[col_fatal].map(fatal_flag_py) if col_fatal else 0
+            evt = evt[evt["ano_sinistro"].notna() & evt["mes_sinistro"].notna()]
+            if col_road:
+                evt = evt[evt["Rodovia"] != ""]
+            monthly_type_df = evt.groupby(["Rodovia", "ano_sinistro", "mes_sinistro", "evento_tipo"], as_index=False).agg(
+                sinistros=("sinistros", "sum"),
+                obitos=("obitos", "sum"),
+            )
+            monthly_type_df["km_total"] = monthly_type_df["Rodovia"].map(road_km_lookup).fillna(total_km_network)
+            monthly_type_df["sinistros_por_km"] = monthly_type_df.apply(
+                lambda row: (float(row["sinistros"]) / float(row["km_total"])) if float(row["km_total"]) > 0 else 0,
+                axis=1,
+            )
+            monthly_type_df["indice_letalidade"] = monthly_type_df.apply(
+                lambda row: (float(row["obitos"]) / float(row["sinistros"]) * 100.0) if float(row["sinistros"]) > 0 else 0,
+                axis=1,
+            )
+            monthly_type_rows = monthly_type_df[[
+                "Rodovia", "ano_sinistro", "mes_sinistro", "evento_tipo", "sinistros", "obitos", "km_total", "sinistros_por_km", "indice_letalidade"
+            ]].to_dict(orient="records")
+    except Exception:
+        monthly_type_rows = []
 
 geo_asset_path = write_json_asset("geo/rodovias_dashboard_main.json", {
     "roadRowsAll": road_rows_geo,
@@ -1000,6 +1074,7 @@ geo_asset_path = write_json_asset("geo/rodovias_dashboard_main.json", {
 geo_analytics_asset_path = write_json_asset("geo/rodovias_dashboard_analytics.json", {
     "annualRows": ag_ano[["ano_sinistro", "sinistros", "vitimas_fatais"]].to_dict(orient="records"),
     "monthlyRows": ag_mes[["ano_sinistro", "mes_sinistro", "sinistros", "fatais"]].to_dict(orient="records"),
+    "monthlyTypeRows": monthly_type_rows,
     "segRowsByYear": trc.get("all_by_year", []),
     "segRowsByType": trc.get("all_by_type", []),
     "segRowsByYearType": trc.get("all_by_year_type", []),
@@ -1109,27 +1184,27 @@ geo_body = f"""
 
         <div class="geo-rail geo-rail-five">
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
+            <h2 id="geoTitleRank"><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
             <div id="roadRankChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
+            <h2 id="geoTitleShare"><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
             <div id="bubbleChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
+            <h2 id="geoTitleSegments"><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
             <div id="segmentChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
+            <h2 id="geoTitleRisk"><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
             <div id="compareChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel span-2">
-            <h2><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
+            <h2 id="geoTitleTimeline"><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
             <div id="timelineChart" class="plot-host plot-timeline"></div>
           </section>
         </div>
@@ -1147,6 +1222,7 @@ let roadRowsByYear = [];
 let roadRowsByYearType = [];
 let annualRows = [];
 let monthlyRows = [];
+let monthlyTypeRows = [];
 let malha = {{ type: 'FeatureCollection', features: [] }};
 let obitosPts = {{ type: 'FeatureCollection', features: [] }};
 let sinistrosPts = {{ type: 'FeatureCollection', features: [] }};
@@ -1184,6 +1260,7 @@ async function ensureGeoAnalyticsLoaded() {{
     .then((data) => {{
       annualRows = data.annualRows || [];
       monthlyRows = data.monthlyRows || [];
+      monthlyTypeRows = data.monthlyTypeRows || [];
       segRowsByYear = data.segRowsByYear || [];
       segRowsByType = data.segRowsByType || [];
       segRowsByYearType = data.segRowsByYearType || [];
@@ -1224,7 +1301,7 @@ function warmGeoOverlays() {{
   else setTimeout(run, 700);
 }}
 const state = {{
-  road: '', eventType: '', metric: '', order: '', topN: 8, year: '',
+  road: '', eventType: '', metric: '', order: '', topN: 8, year: '', segmentKey: null,
   showObitosGroup: false, showObitosPoints: false, showObitosMicros: false, obitosUseYear: false,
   showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: false, sinistrosUseYear: false,
   showHeatGroup: false, showHeatObitos: false, showHeatSinistros: false, heatUseYear: false,
@@ -1243,6 +1320,13 @@ const eventTypeNames = {{
   ATROPELAMENTO: 'Atropelamento',
   OUTROS: 'Outros'
 }};
+const eventTypeOrder = ['COLISAO', 'CHOQUE', 'ATROPELAMENTO', 'OUTROS'];
+const eventTypeColors = {{
+  COLISAO: '#0e4d92',
+  CHOQUE: '#0891b2',
+  ATROPELAMENTO: '#7c3aed',
+  OUTROS: '#475569'
+}};
 
 const fltRoad = document.getElementById('fltRoad');
 const fltEventType = document.getElementById('fltEventType');
@@ -1253,6 +1337,11 @@ const fltTopN = document.getElementById('fltTopN');
 const topNLabel = document.getElementById('topNLabel');
 const kpiBox = document.getElementById('geo-kpis');
 const mapCaption = document.getElementById('map-caption');
+const geoTitleRank = document.getElementById('geoTitleRank');
+const geoTitleShare = document.getElementById('geoTitleShare');
+const geoTitleSegments = document.getElementById('geoTitleSegments');
+const geoTitleRisk = document.getElementById('geoTitleRisk');
+const geoTitleTimeline = document.getElementById('geoTitleTimeline');
 
 function fmt(n, casas=0) {{
   return new Intl.NumberFormat('pt-BR', {{ minimumFractionDigits: casas, maximumFractionDigits: casas }}).format(Number(n || 0));
@@ -1293,18 +1382,33 @@ function typeStyle(kind, family='sinistros') {{
   return {{ symbol: '■', color: '#475569', label: 'Outros' }};
 }}
 
+function normalizeEventType(row) {{
+  const kind = String(row?.evento_tipo || row?.tp_sinistro_primario || '').toUpperCase();
+  if (kind.includes('ATROPEL')) return 'ATROPELAMENTO';
+  if (kind.includes('CHOQUE')) return 'CHOQUE';
+  if (kind.includes('COLISAO')) return 'COLISAO';
+  return 'OUTROS';
+}}
+
 function sameType(row, eventType=state.eventType) {{
   if (eventType === 'ALL') return true;
-  const kind = String(row.evento_tipo || row.tp_sinistro_primario || '').toUpperCase();
-  if (eventType === 'ATROPELAMENTO') return kind.includes('ATROPEL');
-  if (eventType === 'CHOQUE') return kind.includes('CHOQUE');
-  if (eventType === 'COLISAO') return kind.includes('COLISAO');
-  return !kind.includes('ATROPEL') && !kind.includes('CHOQUE') && !kind.includes('COLISAO');
+  return normalizeEventType(row) === eventType;
 }}
 
 function metricValue(row, metric=state.metric) {{
   const value = Number((row || {{}})[metric] || 0);
   return Number.isFinite(value) ? value : 0;
+}}
+
+function metricFromTotals(sinistros, obitos, kmTotal, metric=state.metric) {{
+  if (metric === 'sinistros') return Number(sinistros || 0);
+  if (metric === 'obitos') return Number(obitos || 0);
+  if (metric === 'sinistros_por_km') return Number(kmTotal || 0) > 0 ? Number(sinistros || 0) / Number(kmTotal || 0) : 0;
+  return Number(sinistros || 0) > 0 ? (Number(obitos || 0) / Number(sinistros || 0)) * 100 : 0;
+}}
+
+function currentRoadLabel() {{
+  return state.road === 'ALL' ? 'Todas as rodovias do mapa' : state.road;
 }}
 
 function currentRoadBaseRows() {{
@@ -1317,8 +1421,39 @@ function currentRoadBaseRows() {{
   return base;
 }}
 
+function aggregateRoadRows(rows) {{
+  const byRoad = {{}};
+  rows.forEach(r => {{
+    const key = r.Rodovia;
+    if (!key) return;
+    if (!byRoad[key]) byRoad[key] = {{ Rodovia: key, sinistros: 0, obitos: 0, sinistros_por_km: 0, indice_letalidade: 0, n: 0 }};
+    byRoad[key].sinistros += Number(r.sinistros || 0);
+    byRoad[key].obitos += Number(r.obitos || r.vitimas_fatais || 0);
+    byRoad[key].sinistros_por_km += Number(r.sinistros_por_km || 0);
+    byRoad[key].indice_letalidade += Number(r.indice_letalidade || 0);
+    byRoad[key].n += 1;
+  }});
+  return Object.values(byRoad).map(r => ({{
+    ...r,
+    sinistros_por_km: r.n ? r.sinistros_por_km / r.n : 0,
+    indice_letalidade: r.n ? r.indice_letalidade / r.n : 0,
+  }}));
+}}
+
+function topRoadNamesForCurrentScope(limit=6) {{
+  return aggregateRoadRows(currentRoadBaseRows())
+    .sort((a, b) => Number(b[state.metric] || 0) - Number(a[state.metric] || 0))
+    .slice(0, limit)
+    .map(r => r.Rodovia);
+}}
+
 function currentRoadRows() {{
-  return currentRoadBaseRows().filter(r => state.road === 'ALL' || r.Rodovia === state.road);
+  const base = aggregateRoadRows(currentRoadBaseRows());
+  if (state.road === 'ALL') {{
+    const keep = new Set(topRoadNamesForCurrentScope(6));
+    return base.filter(r => keep.has(r.Rodovia));
+  }}
+  return base.filter(r => r.Rodovia === state.road);
 }}
 
 function currentSegRows() {{
@@ -1330,7 +1465,11 @@ function currentSegRows() {{
   }} else if (state.year !== 'ALL') {{
     base = segRowsByYear.filter(r => String(r.ano_sinistro) === String(state.year));
   }}
-  return base.filter(r => state.road === 'ALL' || r.Rodovia === state.road);
+  if (state.road === 'ALL') {{
+    const keepRoads = new Set(topRoadNamesForCurrentScope(6));
+    return base.filter(r => keepRoads.has(r.Rodovia));
+  }}
+  return base.filter(r => r.Rodovia === state.road);
 }}
 
 function timeSeriesRowsScoped() {{
@@ -1342,11 +1481,18 @@ function timeSeriesRowsScoped() {{
   base.forEach(r => {{
     const y = String(r.ano_sinistro || '');
     if (!y) return;
-    if (!byYear[y]) byYear[y] = {{ ano_sinistro: y, sinistros: 0, obitos: 0 }};
+    if (!byYear[y]) byYear[y] = {{ ano_sinistro: y, sinistros: 0, obitos: 0, sinistros_por_km: 0, indice_letalidade: 0, n: 0 }};
     byYear[y].sinistros += Number(r.sinistros || 0);
     byYear[y].obitos += Number(r.obitos || r.vitimas_fatais || 0);
+    byYear[y].sinistros_por_km += Number(r.sinistros_por_km || 0);
+    byYear[y].indice_letalidade += Number(r.indice_letalidade || 0);
+    byYear[y].n += 1;
   }});
-  let out = Object.values(byYear).sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro));
+  let out = Object.values(byYear).map(r => ({{
+    ...r,
+    sinistros_por_km: r.n ? r.sinistros_por_km / r.n : 0,
+    indice_letalidade: r.n ? r.indice_letalidade / r.n : 0,
+  }})).sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro));
   if (state.year !== 'ALL') out = out.filter(r => String(r.ano_sinistro) === String(state.year));
   return out;
 }}
@@ -1377,6 +1523,38 @@ function availableYears() {{
 
 function availableRoadRows() {{
   return currentRoadBaseRows().filter(r => metricValue(r, state.metric) > 0);
+}}
+
+function roadEventRowsForCharts() {{
+  let base = roadRowsByYearType;
+  if (state.year !== 'ALL') base = base.filter(r => String(r.ano_sinistro) === String(state.year));
+  const allowedRoads = state.road === 'ALL' ? new Set(topRoadNamesForCurrentScope(6)) : new Set([state.road]);
+  base = base.filter(r => allowedRoads.has(r.Rodovia));
+  if (state.eventType !== 'ALL') base = base.filter(r => sameType(r));
+  return base;
+}}
+
+function segmentEventRowsForCharts(segs) {{
+  let base = state.year !== 'ALL'
+    ? segRowsByYearType.filter(r => String(r.ano_sinistro) === String(state.year))
+    : segRowsByType;
+  const allowedRoads = state.road === 'ALL' ? new Set(topRoadNamesForCurrentScope(6)) : new Set([state.road]);
+  base = base.filter(r => allowedRoads.has(r.Rodovia));
+  if (state.eventType !== 'ALL') base = base.filter(r => sameType(r));
+  const displayed = sortRows(segs, state.metric).slice(0, 6).map(r => r.trecho_id || r.Subtrecho);
+  const keepSegments = new Set(state.segmentKey ? [state.segmentKey] : displayed);
+  return base.filter(r => keepSegments.has(r.trecho_id || r.Subtrecho));
+}}
+
+function eventBreakdownForRows(rows) {{
+  const totals = {{ COLISAO: 0, CHOQUE: 0, ATROPELAMENTO: 0, OUTROS: 0 }};
+  rows.forEach(r => {{
+    const evt = normalizeEventType(r);
+    totals[evt] += Math.max(0, metricValue(r, state.metric));
+  }});
+  return eventTypeOrder
+    .filter(evt => totals[evt] > 0)
+    .map(evt => ({{ key: evt, label: eventTypeNames[evt], value: totals[evt], color: eventTypeColors[evt] }}));
 }}
 
 function fillRoadOptions() {{
@@ -1419,7 +1597,7 @@ function updateKpis(rows, segs) {{
   const mediaLet = rows.length ? rows.reduce((acc, r) => acc + Number(r.indice_letalidade || 0), 0) / rows.length : 0;
   const periodoTxt = state.year === 'ALL' ? '{anos_range}' : state.year;
   const tipoTxt = eventTypeNames[state.eventType] || 'Todos os eventos';
-  const roadTxt = state.road === 'ALL' ? 'Malha completa' : state.road;
+  const roadTxt = state.road === 'ALL' ? 'Top 6 rodovias do recorte' : state.road;
   kpiBox.innerHTML = [
     kpiCard('fa-regular fa-calendar', 'Período', periodoTxt, state.year === 'ALL' ? 'Visão acumulada' : 'Ano filtrado', 'ok'),
     kpiCard('fa-solid fa-filter', 'Tipo de evento', tipoTxt, 'Recorte analítico', 'ok'),
@@ -1654,9 +1832,10 @@ function drawMap(rows, segs) {{
   const segLookup = Object.fromEntries(segs.map(r => [r.trecho_id || r.Subtrecho, r]));
   const selectedYear = state.year === 'ALL' ? null : Number(state.year);
   const emptyRow = {{ sinistros: 0, obitos: 0, graves: 0, sinistros_por_km: 0, obitos_por_km: 0, indice_letalidade: 0 }};
+  const allowedRoads = state.road === 'ALL' ? new Set(topRoadNamesForCurrentScope(6)) : null;
   const featureCollection = {{
     type: 'FeatureCollection',
-    features: malha.features.filter(f => state.road === 'ALL' || f.properties.Rodovia === state.road)
+    features: malha.features.filter(f => allowedRoads ? allowedRoads.has(f.properties.Rodovia) : f.properties.Rodovia === state.road)
   }};
   Object.values(overlayGroups).forEach(g => g.clearLayers());
 
@@ -1682,7 +1861,7 @@ function drawMap(rows, segs) {{
         const value = Number(row[state.metric] || 0);
         const sev = severityClass(value, maxMetric);
         l.bindPopup(`<b>${{f.properties.Rodovia}}</b><br>Categoria DER: ${{f.properties.categoria_der}}<br>Subtrecho: ${{f.properties.Subtrecho}}<br>Classificação: <b>${{sev.label}}</b><br>Valor: ${{state.metric.includes('km') || state.metric.includes('indice') ? fmt(value, 2) : fmt(value)}}`);
-        l.on('click', () => {{ state.road = f.properties.Rodovia; fltRoad.value = state.road; renderAll(); }});
+        l.on('click', () => {{ state.road = f.properties.Rodovia; state.segmentKey = key; fltRoad.value = state.road; renderAll(); }});
       }}
     }}).addTo(group);
     visibleBounds.addLayer(lyr);
@@ -1709,9 +1888,9 @@ function drawMap(rows, segs) {{
   const filterPoint = (ft, useYear) => {{
     const coords = ft.geometry.coordinates;
     const sameYear = !(useYear && selectedYear) || Number(ft.properties.ano_sinistro) === selectedYear;
-    const sameRoad = state.road === 'ALL' || ft.properties.Rodovia === state.road;
+    const sameRoad = allowedRoads ? allowedRoads.has(ft.properties.Rodovia) : ft.properties.Rodovia === state.road;
     const sameTypeEvent = state.eventType === 'ALL' || sameType(ft.properties);
-    const sameArea = !bounds || state.road === 'ALL' || bounds.contains([coords[1], coords[0]]);
+    const sameArea = !bounds || allowedRoads || bounds.contains([coords[1], coords[0]]);
     return sameYear && sameRoad && sameTypeEvent && sameArea;
   }};
 
@@ -1774,6 +1953,11 @@ function currentPeriodLabel() {{
   return state.year === 'ALL' ? '{anos_range}' : String(state.year);
 }}
 
+function setPanelTitle(el, iconClass, text) {{
+  if (!el) return;
+  el.innerHTML = `<i class="${{iconClass}}"></i> ${{text}}`;
+}}
+
 function metricAxisTitle(metric) {{
   if (metric === 'sinistros') return 'Sinistros (ocorrências)';
   if (metric === 'obitos') return 'Óbitos (vítimas)';
@@ -1781,80 +1965,90 @@ function metricAxisTitle(metric) {{
   return 'Letalidade (%)';
 }}
 
-function chartLayout(title, xTitle='', yTitle='') {{
-  return {{
-    title: {{ text: title, x: 0.02 }},
+function chartLayout(title='', xTitle='', yTitle='') {{
+  const layout = {{
     paper_bgcolor: 'white',
     plot_bgcolor: 'white',
     font: {{ family: 'Inter, Segoe UI, sans-serif', size: 12, color: '#1f2937' }},
-    margin: {{ l: 70, r: 20, t: 54, b: 54 }},
+    margin: {{ l: 70, r: 20, t: title ? 54 : 24, b: 54 }},
     height: 290,
     legend: {{ orientation: 'h', y: -0.2, x: 0.5, xanchor: 'center' }},
     xaxis: {{ title: xTitle, automargin: true }},
     yaxis: {{ title: yTitle, automargin: true }}
   }};
+  if (title) layout.title = {{ text: title, x: 0.5, xanchor: 'center' }};
+  return layout;
 }}
 
 function renderTimeSeries() {{
   const selectedYear = state.year === 'ALL' ? null : Number(state.year);
-  const canUseMonthly = selectedYear && state.road === 'ALL' && state.eventType === 'ALL';
+  const useMonthly = Number.isFinite(selectedYear) && selectedYear !== null;
+  const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const timelineTitle = `Dinâmica temporal de ${{metricNames[state.metric]}} em ${{currentPeriodLabel()}}`;
+  setPanelTitle(geoTitleTimeline, 'fa-solid fa-clock', timelineTitle);
 
-  if (canUseMonthly) {{
-    const months = monthlyRows
-      .filter(r => Number(r.ano_sinistro) === selectedYear)
-      .sort((a, b) => Number(a.mes_sinistro) - Number(b.mes_sinistro));
-    Plotly.react('timelineChart', [
-      {{
+  if (useMonthly) {{
+    let scoped = monthlyTypeRows.filter(r => Number(r.ano_sinistro) === selectedYear && (state.road === 'ALL' || !r.Rodovia || r.Rodovia === 'ALL' || r.Rodovia === state.road) && (state.eventType === 'ALL' || sameType(r)));
+    if (!scoped.length) {{
+      scoped = monthlyRows
+        .filter(r => Number(r.ano_sinistro) === selectedYear)
+        .map(r => ({{
+          ano_sinistro: r.ano_sinistro,
+          mes_sinistro: r.mes_sinistro,
+          evento_tipo: state.eventType === 'ALL' ? 'ALL' : state.eventType,
+          sinistros: Number(r.sinistros || 0),
+          obitos: Number(r.fatais || 0),
+          km_total: 1
+        }}));
+    }}
+    const activeTypes = eventTypeOrder.filter(evt => scoped.some(r => normalizeEventType(r) === evt));
+    const traces = (activeTypes.length ? activeTypes : ['ALL']).map(evt => {{
+      const series = Array.from({{ length: 12 }}, (_, idx) => idx + 1).map(monthNum => {{
+        const bucket = scoped.filter(r => (evt === 'ALL' || normalizeEventType(r) === evt || r.evento_tipo === 'ALL') && Number(r.mes_sinistro) === monthNum);
+        const sinistros = bucket.reduce((acc, r) => acc + Number(r.sinistros || 0), 0);
+        const obitos = bucket.reduce((acc, r) => acc + Number(r.obitos || 0), 0);
+        const kmTotal = bucket.reduce((acc, r) => acc + Number(r.km_total || 0), 0);
+        return metricFromTotals(sinistros, obitos, kmTotal, state.metric);
+      }});
+      return {{
         type: 'bar',
-        name: 'Sinistros',
-        x: months.map(r => String(r.mes_sinistro).padStart(2, '0')),
-        y: months.map(r => Number(r.sinistros || 0)),
-        marker: {{ color: '#0e4d92' }}
-      }},
-      {{
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Eventos fatais',
-        x: months.map(r => String(r.mes_sinistro).padStart(2, '0')),
-        y: months.map(r => Number(r.fatais || 0)),
-        line: {{ color: '#d52b1e', width: 3 }}
-      }}
-    ], {{
-      ...chartLayout(`Leitura mensal do ano ${{selectedYear}}`, 'Tempo (mês)', 'Quantidade (ocorrências / vítimas)'),
-      height: 240,
-      barmode: 'overlay',
-      margin: {{ l: 50, r: 20, t: 54, b: 40 }}
+        name: evt === 'ALL' ? metricNames[state.metric] : eventTypeNames[evt],
+        x: monthLabels,
+        y: series,
+        marker: {{ color: evt === 'ALL' ? '#0e4d92' : eventTypeColors[evt] }}
+      }};
+    }});
+
+    Plotly.react('timelineChart', traces, {{
+      ...chartLayout('', 'Tempo (mês)', metricAxisTitle(state.metric)),
+      height: 260,
+      barmode: 'stack',
+      margin: {{ l: 60, r: 170, t: 24, b: 56 }},
+      legend: {{ orientation: 'v', x: 1.02, y: 1, xanchor: 'left', yanchor: 'top' }},
+      xaxis: {{ title: 'Tempo (mês)', automargin: true }},
+      yaxis: {{ title: metricAxisTitle(state.metric), automargin: true }}
     }}, {{ responsive: true, displaylogo: false }});
   }} else {{
     const scoped = timeSeriesRowsScoped();
     const years = scoped.map(r => Number(r.ano_sinistro));
-    const sinistros = scoped.map(r => Number(r.sinistros || 0));
-    const obitos = scoped.map(r => Number(r.obitos || 0));
+    const values = scoped.map(r => Number(r[state.metric] || 0));
     Plotly.react('timelineChart', [
       {{
         type: 'scatter',
         mode: 'lines+markers',
-        name: 'Sinistros',
+        name: metricNames[state.metric],
         x: years,
-        y: sinistros,
+        y: values,
         line: {{ color: '#0e4d92', width: 3 }},
         marker: {{ size: 7, color: '#0e4d92' }}
-      }},
-      {{
-        type: 'scatter',
-        mode: 'lines+markers',
-        name: 'Óbitos',
-        x: years,
-        y: obitos,
-        line: {{ color: '#d52b1e', width: 3, dash: 'dot' }},
-        marker: {{ size: 7, color: '#d52b1e' }}
       }}
     ], {{
-      ...chartLayout(`Evolução do recorte espacial · ${{currentPeriodLabel()}}`, 'Tempo (ano)', 'Quantidade (ocorrências / vítimas)'),
-      height: 240,
-      margin: {{ l: 50, r: 20, t: 54, b: 40 }},
-      xaxis: {{ title: 'Tempo (ano)', tickmode: 'array', tickvals: years }},
-      yaxis: {{ title: 'Quantidade (ocorrências / vítimas)' }}
+      ...chartLayout('', 'Tempo (ano)', metricAxisTitle(state.metric)),
+      height: 260,
+      showlegend: false,
+      margin: {{ l: 60, r: 40, t: 24, b: 56 }},
+      xaxis: {{ title: 'Tempo (ano)', tickmode: 'array', tickvals: years, automargin: true }},
+      yaxis: {{ title: metricAxisTitle(state.metric), automargin: true }}
     }}, {{ responsive: true, displaylogo: false }});
   }}
 
@@ -1862,7 +2056,7 @@ function renderTimeSeries() {{
   timeline.removeAllListeners?.('plotly_click');
   timeline.on('plotly_click', ev => {{
     const year = String(ev.points[0].x).slice(0, 4);
-    if (year && year !== 'NaN') {{
+    if (year && year !== 'NaN' && state.year === 'ALL') {{
       state.year = year;
       fltYear.value = year;
       renderAll();
@@ -1873,18 +2067,21 @@ function renderTimeSeries() {{
 function renderRoadRank(rows) {{
   const ranked = sortRows(rows, state.metric).slice(0, state.topN).reverse();
   const rankTitle = `Ranking de rodovias x ${{metricNames[state.metric]}}<br>em ${{currentPeriodLabel()}}`;
+  setPanelTitle(geoTitleRank, 'fa-solid fa-trophy', rankTitle);
   Plotly.react('roadRankChart', [{{
     type: 'bar',
     orientation: 'h',
     x: ranked.map(r => r[state.metric]),
     y: ranked.map(r => r.Rodovia),
     text: ranked.map(r => state.metric.includes('km') || state.metric.includes('indice') ? fmt(r[state.metric], 2) : fmt(r[state.metric])),
-    textposition: 'outside',
+    textposition: 'inside',
+    insidetextanchor: 'middle',
+    textfont: {{ color: '#ffffff', size: 12 }},
     cliponaxis: false,
     marker: {{ color: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }}
   }}], {{
-    ...chartLayout(rankTitle, metricAxisTitle(state.metric), 'Rodovia'),
-    title: {{ text: rankTitle, x: 0.5, xanchor: 'center' }}
+    ...chartLayout('', metricAxisTitle(state.metric), 'Rodovia'),
+    margin: {{ l: 70, r: 20, t: 24, b: 54 }}
   }}, {{ responsive: true, displaylogo: false }});
   const rankChart = document.getElementById('roadRankChart');
   rankChart.removeAllListeners?.('plotly_click');
@@ -1896,76 +2093,73 @@ function renderRoadRank(rows) {{
 }}
 
 function renderBubble(rows) {{
-  const ranked = sortRows(rows, state.metric).slice(0, Math.min(6, rows.length));
-  const total = ranked.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0) || 1;
+  const parts = eventBreakdownForRows(roadEventRowsForCharts());
+  const shareTitle = `Percentual dos tipos de ${{metricNames[state.metric]}}<br>em ${{currentPeriodLabel()}}`;
+  setPanelTitle(geoTitleShare, 'fa-solid fa-circle-notch', shareTitle);
   Plotly.react('bubbleChart', [{{
-    type: 'bar',
-    x: ranked.map(r => r.Rodovia),
-    y: ranked.map(r => (Number(r[state.metric] || 0) / total) * 100),
-    customdata: ranked.map(r => r.Rodovia),
-    text: ranked.map(r => `${{fmt((Number(r[state.metric] || 0) / total) * 100, 1)}}%`),
-    textposition: 'outside',
-    cliponaxis: false,
-    marker: {{ color: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }}
-  }}], {{ ...chartLayout(`Participação no indicador · ${{currentPeriodLabel()}}`, 'Rodovia', 'Participação (%)'), margin: {{ l: 50, r: 20, t: 54, b: 70 }} }}, {{ responsive: true, displaylogo: false }});
+    type: 'pie',
+    hole: 0.58,
+    labels: parts.map(r => r.label),
+    values: parts.map(r => r.value),
+    customdata: parts.map(r => r.key),
+    textinfo: 'percent',
+    textposition: 'inside',
+    marker: {{ colors: parts.map(r => r.color) }},
+    hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<br>Participação: %{{percent}}<extra></extra>'
+  }}], {{ ...chartLayout(''), margin: {{ l: 10, r: 10, t: 24, b: 10 }}, showlegend: true, legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }} }}, {{ responsive: true, displaylogo: false }});
   const bubble = document.getElementById('bubbleChart');
   bubble.removeAllListeners?.('plotly_click');
   bubble.on('plotly_click', ev => {{
-    state.road = ev.points[0].customdata;
-    fltRoad.value = state.road;
+    state.eventType = ev.points[0].customdata || 'ALL';
+    fltEventType.value = state.eventType;
     renderAll();
   }});
 }}
 
 function renderSegments(segs) {{
-  const ranked = sortRows(segs, state.metric).slice(0, state.topN).reverse();
+  const ranked = sortRows(segs, state.metric).slice(0, 6).reverse();
+  const maxMetric = Math.max(...ranked.map(r => Number(r[state.metric] || 0)), 1);
+  const segmentTitle = `Nº de ${{metricNames[state.metric]}} por subtrecho crítico da rodovia ${{currentRoadLabel()}} em ${{currentPeriodLabel()}}`;
+  setPanelTitle(geoTitleSegments, 'fa-solid fa-route', segmentTitle);
   Plotly.react('segmentChart', [{{
     type: 'bar',
     orientation: 'h',
     x: ranked.map(r => r[state.metric]),
-    y: ranked.map(r => `${{r.Subtrecho}} · km ${{fmt(r.KmInicial, 2)}}–${{fmt(r.KmFinal, 2)}}`),
+    y: ranked.map(r => `km ${{fmt(r.KmInicial, 2)}} – km ${{fmt(r.KmFinal, 2)}}`),
     text: ranked.map(r => state.metric.includes('km') || state.metric.includes('indice') ? fmt(r[state.metric], 2) : fmt(r[state.metric])),
-    textposition: 'outside',
+    textposition: 'inside',
+    insidetextanchor: 'middle',
+    textfont: {{ color: '#ffffff', size: 12 }},
     cliponaxis: false,
-    marker: {{ color: '#0e4d92' }}
-  }}], chartLayout(state.road === 'ALL' ? `Subtrechos em destaque no mapa · ${{currentPeriodLabel()}}` : `Subtrechos de ${{state.road}} · ${{currentPeriodLabel()}}`, metricAxisTitle(state.metric), 'Subtrecho / posição km'), {{ responsive: true, displaylogo: false }});
+    customdata: ranked.map(r => r.trecho_id || r.Subtrecho),
+    marker: {{ color: ranked.map(r => pickColor(Number(r[state.metric] || 0), maxMetric)) }}
+  }}], chartLayout('', metricAxisTitle(state.metric), 'Subtrecho / posição km'), {{ responsive: true, displaylogo: false }});
+  const segChart = document.getElementById('segmentChart');
+  segChart.removeAllListeners?.('plotly_click');
+  segChart.on('plotly_click', ev => {{
+    state.segmentKey = ev.points?.[0]?.customdata || null;
+    renderAll();
+  }});
 }}
 
-function renderCompare(rows) {{
-  let labels = [];
-  let values = [];
-  let colors = [];
-
-  if (state.road !== 'ALL' && rows.length) {{
-    const r = rows[0];
-    const totalVisible = currentRoadRows().reduce((a, item) => a + Number(item[state.metric] || 0), 0);
-    const current = Number(r[state.metric] || 0);
-    const others = Math.max(0, totalVisible - current);
-    labels = [state.road, 'Demais rodovias'];
-    values = [current, others];
-    colors = ['#0e4d92', '#cbd5e1'];
-  }} else {{
-    const ranked = sortRows(rows, state.metric).slice(0, Math.min(5, rows.length));
-    const rankedSum = ranked.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
-    const totalAll = rows.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
-    const others = Math.max(0, totalAll - rankedSum);
-    labels = ranked.map(r => r.Rodovia).concat(others > 0 ? ['Outras'] : []);
-    values = ranked.map(r => Number(r[state.metric] || 0)).concat(others > 0 ? [others] : []);
-    colors = ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed', '#cbd5e1'];
-  }}
+function renderCompare(rows, segs) {{
+  const parts = eventBreakdownForRows(segmentEventRowsForCharts(segs));
+  const compareTitle = `Percentual dos tipos de ${{metricNames[state.metric]}}<br>em ${{currentPeriodLabel()}}`;
+  setPanelTitle(geoTitleRisk, 'fa-solid fa-chart-pie', compareTitle);
 
   Plotly.react('compareChart', [{{
     type: 'pie',
     hole: 0.58,
-    labels,
-    values,
+    labels: parts.map(r => r.label),
+    values: parts.map(r => r.value),
+    customdata: parts.map(r => r.key),
     textinfo: 'percent',
     textposition: 'inside',
-    marker: {{ colors }},
+    marker: {{ colors: parts.map(r => r.color) }},
     hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<br>Participação: %{{percent}}<extra></extra>'
   }}], {{
-    ...chartLayout(`Composição do risco · ${{currentPeriodLabel()}}`),
-    margin: {{ l: 10, r: 10, t: 54, b: 10 }},
+    ...chartLayout(''),
+    margin: {{ l: 10, r: 10, t: 24, b: 10 }},
     showlegend: true,
     legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }}
   }}, {{ responsive: true, displaylogo: false }});
@@ -1990,13 +2184,15 @@ function renderAll() {{
 
   const rows = currentRoadRows();
   const segs = currentSegRows();
+  const validSegments = new Set(segs.map(r => r.trecho_id || r.Subtrecho));
+  if (state.segmentKey && !validSegments.has(state.segmentKey)) state.segmentKey = null;
   updateKpis(rows, segs);
   renderTimeSeries();
   drawMap(rows, segs);
   renderRoadRank(rows);
   renderBubble(rows);
   renderSegments(segs);
-  renderCompare(rows);
+  renderCompare(rows, segs);
 }}
 
 fltRoad.addEventListener('change', () => {{ state.road = fltRoad.value || 'ALL'; renderAll(); }});
@@ -2059,6 +2255,8 @@ sub_asset_path = write_json_asset("geo/subtrechos_dashboard_main.json", {
 sub_analytics_asset_path = write_json_asset("geo/subtrechos_dashboard_analytics.json", {
     "focusRowsByYearType": subtr.get("subtrechos_foco_by_year_type", []),
     "roadYearTypeRows": rod.get("all_by_year_type", []),
+    "monthlyRows": ag_mes[["ano_sinistro", "mes_sinistro", "sinistros", "fatais"]].to_dict(orient="records"),
+    "monthlyTypeRows": monthly_type_rows,
 })
 sub_overlay_asset_path = write_json_asset("geo/subtrechos_dashboard_overlays.json", {
     "obitosPts": json.load(open(OUT / "pontos_obitos.geojson", encoding="utf-8")),
@@ -2151,27 +2349,27 @@ sub_body = f"""
 
         <div class="geo-rail geo-rail-five">
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-chart-column"></i> Panorama macro do fenômeno</h2>
+            <h2 id="subTitleRoadChart"><i class="fa-solid fa-chart-column"></i> Panorama macro do fenômeno</h2>
             <div id="subRoadChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-signal"></i> Subtrechos por classe</h2>
+            <h2 id="subTitleClassChart"><i class="fa-solid fa-signal"></i> Subtrechos por classe</h2>
             <div id="subClassChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-road-circle-exclamation"></i> Subtrechos críticos</h2>
+            <h2 id="subTitleSegmentChart"><i class="fa-solid fa-road-circle-exclamation"></i> Subtrechos críticos</h2>
             <div id="subSegmentChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel">
-            <h2><i class="fa-solid fa-chart-pie"></i> Composição dos líderes</h2>
+            <h2 id="subTitleShareChart"><i class="fa-solid fa-chart-pie"></i> Composição dos líderes</h2>
             <div id="subShareChart" class="plot-host"></div>
           </section>
 
           <section class="geo-panel span-2">
-            <h2><i class="fa-solid fa-clock"></i> Evolução temporal</h2>
+            <h2 id="subTitleSeriesChart"><i class="fa-solid fa-clock"></i> Evolução temporal</h2>
             <div id="subSeriesChart" class="plot-host plot-timeline"></div>
           </section>
         </div>
@@ -2190,6 +2388,8 @@ let focusRowsAll = [];
 let focusRowsByType = [];
 let focusRowsByYearType = [];
 let roadYearTypeRows = [];
+let monthlyRows2 = [];
+let monthlyTypeRows2 = [];
 let obitosPts2 = {{ type: 'FeatureCollection', features: [] }};
 let sinistrosPts2 = {{ type: 'FeatureCollection', features: [] }};
 let heatSinistros2 = {{ points: [] }};
@@ -2220,6 +2420,8 @@ async function ensureSubAnalyticsLoaded() {{
     .then((data) => {{
       focusRowsByYearType = data.focusRowsByYearType || [];
       roadYearTypeRows = data.roadYearTypeRows || [];
+      monthlyRows2 = data.monthlyRows || [];
+      monthlyTypeRows2 = data.monthlyTypeRows || [];
       subAnalyticsLoaded = true;
     }})
     .finally(() => {{ subAnalyticsLoading = null; }});
@@ -2256,6 +2458,13 @@ function warmSubOverlays() {{
   else setTimeout(run, 700);
 }}
 const eventTypeNames2 = {{ ALL: 'Todos', COLISAO: 'Colisão', CHOQUE: 'Choque', ATROPELAMENTO: 'Atropelamento', OUTROS: 'Outros' }};
+const eventTypeOrder2 = ['COLISAO', 'CHOQUE', 'ATROPELAMENTO', 'OUTROS'];
+const eventTypeColors2 = {{
+  COLISAO: '#0e4d92',
+  CHOQUE: '#0891b2',
+  ATROPELAMENTO: '#7c3aed',
+  OUTROS: '#475569'
+}};
 const metricNames2 = {{ sinistros: 'Sinistros', obitos: 'Óbitos', sinistros_por_km: 'Sinistros/km', indice_letalidade: 'Letalidade (%)' }};
 const viewModeNames2 = {{
   malha: 'Apenas malha viária',
@@ -2291,6 +2500,16 @@ const subViewMode = document.getElementById('subViewMode');
 const subYear = document.getElementById('subYear');
 const subKpis = document.getElementById('sub-kpis');
 const subCaption = document.getElementById('sub-caption');
+const subTitleRoadChart = document.getElementById('subTitleRoadChart');
+const subTitleClassChart = document.getElementById('subTitleClassChart');
+const subTitleSegmentChart = document.getElementById('subTitleSegmentChart');
+const subTitleShareChart = document.getElementById('subTitleShareChart');
+const subTitleSeriesChart = document.getElementById('subTitleSeriesChart');
+
+function setPanelTitle(el, iconClass, text) {{
+  if (!el) return;
+  el.innerHTML = `<i class="${{iconClass}}"></i> ${{text}}`;
+}}
 
 function syncViewState2(origin='render') {{
   const ratioMetric = ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric);
@@ -2358,9 +2577,16 @@ function typeStyle2(kind, family='sinistros') {{
   if (k.includes('COLISAO')) return {{ symbol: '●', color: '#0e4d92', label: 'Colisão' }};
   return {{ symbol: '■', color: '#475569', label: 'Outros' }};
 }}
+function normalizeEventType2(row) {{
+  const kind = String(row?.evento_tipo || row?.tp_sinistro_primario || '').toUpperCase();
+  if (kind.includes('ATROPEL')) return 'ATROPELAMENTO';
+  if (kind.includes('CHOQUE')) return 'CHOQUE';
+  if (kind.includes('COLISAO')) return 'COLISAO';
+  return 'OUTROS';
+}}
 function sameType2(row, eventType=state2.eventType) {{
   if (eventType === 'ALL') return true;
-  return String(row.evento_tipo || row.tp_sinistro_primario || '').toUpperCase() === eventType;
+  return normalizeEventType2(row) === eventType;
 }}
 function focusRoadNames2() {{
   return [...new Set((focusMalha.features || []).map(f => f.properties.Rodovia))];
@@ -2368,6 +2594,18 @@ function focusRoadNames2() {{
 function metricValue2(row, metric=state2.metric) {{
   const value = Number((row || {{}})[metric] || 0);
   return Number.isFinite(value) ? value : 0;
+}}
+function metricFromTotals2(sinistros, obitos, kmTotal, metric=state2.metric) {{
+  if (metric === 'sinistros') return Number(sinistros || 0);
+  if (metric === 'obitos') return Number(obitos || 0);
+  if (metric === 'sinistros_por_km') return Number(kmTotal || 0) > 0 ? Number(sinistros || 0) / Number(kmTotal || 0) : 0;
+  return Number(sinistros || 0) > 0 ? (Number(obitos || 0) / Number(sinistros || 0)) * 100 : 0;
+}}
+function currentPeriodLabel2() {{
+  return state2.year === 'ALL' ? '{anos_range}' : String(state2.year);
+}}
+function currentRoadLabel2() {{
+  return state2.road === 'ALL' ? 'Todas as rodovias do recorte' : state2.road;
 }}
 function isPositiveMetric2(row, metric=state2.metric) {{
   return metricValue2(row, metric) > 0;
@@ -2441,26 +2679,80 @@ function syncFilterOptions2() {{
   state2.viewMode = rebuildOptions2(subViewMode, modes, state2.viewMode);
   syncViewState2('render');
 }}
-function currentRows2() {{
+function currentRoadBaseRows2() {{
   const pool = roadPool2();
+  return state2.year === 'ALL'
+    ? roadYearTypeRows.filter(r => sameType2(r) && pool.includes(r.Rodovia))
+    : roadYearTypeRows.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
+}}
+function topRoadNamesForCurrentScope2(limit=6) {{
+  return aggregateRoadRows2(currentRoadBaseRows2())
+    .sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0))
+    .slice(0, limit)
+    .map(r => r.Rodovia);
+}}
+function currentRows2() {{
   let base = state2.year === 'ALL'
-    ? focusRowsByType.filter(r => sameType2(r) && pool.includes(r.Rodovia))
-    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
-  if (state2.road !== 'ALL') base = base.filter(r => r.Rodovia === state2.road);
-  return base;
+    ? focusRowsByType.filter(r => sameType2(r))
+    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year));
+  if (state2.road === 'ALL') {{
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    return base.filter(r => keep.has(r.Rodovia));
+  }}
+  return base.filter(r => r.Rodovia === state2.road);
 }}
 function roadRanking2() {{
-  const pool = roadPool2();
-  let rows = state2.year === 'ALL'
-    ? aggregateRoadRows2(roadYearTypeRows.filter(r => sameType2(r) && pool.includes(r.Rodovia)))
-    : roadYearTypeRows.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year) && pool.includes(r.Rodovia));
-  if (state2.road !== 'ALL') rows = rows.filter(r => r.Rodovia === state2.road);
+  let rows = aggregateRoadRows2(currentRoadBaseRows2());
+  if (state2.road === 'ALL') {{
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    rows = rows.filter(r => keep.has(r.Rodovia));
+  }} else {{
+    rows = rows.filter(r => r.Rodovia === state2.road);
+  }}
   return [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0));
 }}
+function roadEventRowsForCharts2() {{
+  let base = currentRoadBaseRows2();
+  if (state2.road === 'ALL') {{
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    base = base.filter(r => keep.has(r.Rodovia));
+  }} else {{
+    base = base.filter(r => r.Rodovia === state2.road);
+  }}
+  return base;
+}}
+function segmentEventRowsForCharts2(rows) {{
+  let base = state2.year === 'ALL'
+    ? focusRowsByType.filter(r => sameType2(r))
+    : focusRowsByYearType.filter(r => sameType2(r) && String(r.ano_sinistro) === String(state2.year));
+  if (state2.road === 'ALL') {{
+    const keepRoads = new Set(topRoadNamesForCurrentScope2(6));
+    base = base.filter(r => keepRoads.has(r.Rodovia));
+  }} else {{
+    base = base.filter(r => r.Rodovia === state2.road);
+  }}
+  const displayed = [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 6).map(r => r.trecho_id || r.Subtrecho);
+  const keepSegments = new Set(state2.highlightSegment ? [state2.highlightSegment] : displayed);
+  return base.filter(r => keepSegments.has(r.trecho_id || r.Subtrecho));
+}}
+function eventBreakdownForRows2(rows) {{
+  const totals = {{ COLISAO: 0, CHOQUE: 0, ATROPELAMENTO: 0, OUTROS: 0 }};
+  rows.forEach(r => {{
+    const evt = normalizeEventType2(r);
+    totals[evt] += Math.max(0, metricValue2(r, state2.metric));
+  }});
+  return eventTypeOrder2
+    .filter(evt => totals[evt] > 0)
+    .map(evt => ({{ key: evt, label: eventTypeNames2[evt], value: totals[evt], color: eventTypeColors2[evt] }}));
+}}
 function seriesRows2() {{
-  const pool = roadPool2();
-  let rows = roadYearTypeRows.filter(r => sameType2(r) && pool.includes(r.Rodovia));
-  if (state2.road !== 'ALL') rows = rows.filter(r => r.Rodovia === state2.road);
+  let rows = currentRoadBaseRows2();
+  if (state2.road === 'ALL') {{
+    const keep = new Set(topRoadNamesForCurrentScope2(6));
+    rows = rows.filter(r => keep.has(r.Rodovia));
+  }} else {{
+    rows = rows.filter(r => r.Rodovia === state2.road);
+  }}
   const byYear = {{}};
   rows.forEach(r => {{
     const y = String(r.ano_sinistro);
@@ -2508,7 +2800,7 @@ function metricAxisTitle2(metric) {{
 }}
 function layout2(title, xTitle='', yTitle='') {{
   return {{
-    title: {{ text: title, x: 0.02 }},
+    title: {{ text: title, x: 0.5, xanchor: 'center' }},
     paper_bgcolor: 'white',
     plot_bgcolor: 'white',
     font: {{ family: 'Inter, Segoe UI, sans-serif', size: 12, color: '#1f2937' }},
@@ -2816,59 +3108,75 @@ function severityBucket2(value, maxValue) {{
   return 'Baixo';
 }}
 function renderRoadChart2(rows) {{
-  const scoped = state2.road === 'ALL' ? currentRows2() : currentRows2().filter(r => r.Rodovia === state2.road);
-  const maxMetric = Math.max(...scoped.map(r => Number(r[state2.metric] || 0)), 1);
-  const buckets = ['Baixo', 'Moderado', 'Alto', 'Crítico'];
-  const totals = {{ 'Baixo': 0, 'Moderado': 0, 'Alto': 0, 'Crítico': 0 }};
-  scoped.forEach(r => {{
-    const bucket = severityBucket2(Number(r[state2.metric] || 0), maxMetric);
-    totals[bucket] += Number(r[state2.metric] || 0);
-  }});
+  const ranked = roadRanking2().slice(0, 6).reverse();
+  const rankTitle = `Ranking de rodovias x ${{metricNames2[state2.metric]}}<br>em ${{currentPeriodLabel2()}}`;
+  setPanelTitle(subTitleRoadChart, 'fa-solid fa-trophy', rankTitle);
+  const maxMetric = Math.max(...ranked.map(r => Number(r[state2.metric] || 0)), 1);
   Plotly.react('subRoadChart', [{{
     type: 'bar',
-    x: buckets,
-    y: buckets.map(label => totals[label] || 0),
-    text: buckets.map(label => ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric) ? fmt2(totals[label] || 0, 2) : fmt2(totals[label] || 0)),
-    textposition: 'outside',
+    orientation: 'h',
+    x: ranked.map(r => Number(r[state2.metric] || 0)),
+    y: ranked.map(r => r.Rodovia),
+    text: ranked.map(r => ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric) ? fmt2(r[state2.metric], 2) : fmt2(r[state2.metric])),
+    textposition: 'inside',
+    insidetextanchor: 'middle',
+    textfont: {{ color: '#ffffff', size: 12 }},
     cliponaxis: false,
-    marker: {{ color: ['#facc15', '#f97316', '#b91c1c', '#7f1d1d'] }}
-  }}], {{ ...layout2(`Panorama macro · ${{eventTypeNames2[state2.eventType]}}`, 'Classe de criticidade', metricAxisTitle2(state2.metric)), margin: {{ l: 50, r: 20, t: 54, b: 50 }} }}, {{ responsive: true, displaylogo: false }});
+    marker: {{ color: ranked.map(r => pickColor2(Number(r[state2.metric] || 0), maxMetric)) }}
+  }}], {{ ...layout2('', metricAxisTitle2(state2.metric), 'Rodovia'), margin: {{ l: 70, r: 20, t: 24, b: 54 }} }}, {{ responsive: true, displaylogo: false }});
+  const el = document.getElementById('subRoadChart');
+  if (el.removeAllListeners) el.removeAllListeners('plotly_click');
+  el.on('plotly_click', (evt) => {{
+    const road = evt.points?.[0]?.y;
+    if (!road) return;
+    state2.road = road;
+    subRoad.value = road;
+    state2.highlightRoad = road;
+    state2.highlightSegment = null;
+    renderSubDash();
+  }});
 }}
 function renderClassChart2(rows) {{
-  const scoped = state2.road === 'ALL' ? rows : rows.filter(r => r.Rodovia === state2.road);
-  const maxMetric = Math.max(...scoped.map(r => Number(r[state2.metric] || 0)), 1);
-  const counts = {{ 'Baixo': 0, 'Moderado': 0, 'Alto': 0, 'Crítico': 0 }};
-  scoped.forEach(r => {{
-    const bucket = severityBucket2(Number(r[state2.metric] || 0), maxMetric);
-    counts[bucket] += 1;
-  }});
-  const labels = ['Baixo', 'Moderado', 'Alto', 'Crítico'];
+  const parts = eventBreakdownForRows2(roadEventRowsForCharts2());
+  const classTitle = `Percentual dos tipos de ${{metricNames2[state2.metric]}}<br>em ${{currentPeriodLabel2()}}`;
+  setPanelTitle(subTitleClassChart, 'fa-solid fa-circle-notch', classTitle);
   Plotly.react('subClassChart', [{{
-    type: 'bar',
-    x: labels,
-    y: labels.map(label => counts[label] || 0),
-    marker: {{ color: ['#facc15', '#f97316', '#b91c1c', '#7f1d1d'] }},
-    text: labels.map(label => counts[label] || 0),
-    textposition: 'outside',
-    cliponaxis: false
-  }}], {{ ...layout2('Subtrechos por classe', 'Classe de criticidade', 'Subtrechos (quantidade)'), margin: {{ l: 50, r: 20, t: 54, b: 50 }} }}, {{ responsive: true, displaylogo: false }});
+    type: 'pie',
+    hole: 0.58,
+    labels: parts.map(r => r.label),
+    values: parts.map(r => r.value),
+    customdata: parts.map(r => r.key),
+    textinfo: 'percent',
+    textposition: 'inside',
+    marker: {{ colors: parts.map(r => r.color) }},
+    hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<br>Participação: %{{percent}}<extra></extra>'
+  }}], {{ ...layout2(''), margin: {{ l: 10, r: 10, t: 24, b: 10 }}, showlegend: true, legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }} }}, {{ responsive: true, displaylogo: false }});
+  const el = document.getElementById('subClassChart');
+  if (el.removeAllListeners) el.removeAllListeners('plotly_click');
+  el.on('plotly_click', (evt) => {{
+    state2.eventType = evt.points?.[0]?.customdata || 'ALL';
+    subEventType.value = state2.eventType;
+    renderSubDash();
+  }});
 }}
 function renderSegChart2(rows, roads) {{
-  const baseRoad = state2.road !== 'ALL' ? state2.road : null;
-  const scoped = baseRoad ? rows.filter(r => r.Rodovia === baseRoad) : rows;
-  const top = [...scoped].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 10).reverse();
+  const top = [...rows].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 6).reverse();
   const maxMetric = Math.max(...top.map(r => Number(r[state2.metric] || 0)), 1);
+  const segmentTitle = `Nº de ${{metricNames2[state2.metric]}} por subtrecho crítico da rodovia ${{currentRoadLabel2()}} em ${{currentPeriodLabel2()}}`;
+  setPanelTitle(subTitleSegmentChart, 'fa-solid fa-road-circle-exclamation', segmentTitle);
   Plotly.react('subSegmentChart', [{{
     type: 'bar',
     orientation: 'h',
     x: top.map(r => Number(r[state2.metric] || 0)),
-    y: top.map(r => `km ${{fmt2(r.KmInicial, 2)}}–${{fmt2(r.KmFinal, 2)}}`),
+    y: top.map(r => `km ${{fmt2(r.KmInicial, 2)}} – km ${{fmt2(r.KmFinal, 2)}}`),
     text: top.map(r => ['sinistros_por_km', 'indice_letalidade'].includes(state2.metric) ? fmt2(r[state2.metric], 2) : fmt2(r[state2.metric])),
-    textposition: 'outside',
+    textposition: 'inside',
+    insidetextanchor: 'middle',
+    textfont: {{ color: '#ffffff', size: 12 }},
     cliponaxis: false,
     customdata: top.map(r => [r.trecho_id, r.Rodovia]),
     marker: {{ color: top.map(r => pickColor2(Number(r[state2.metric] || 0), maxMetric)) }}
-  }}], layout2(baseRoad ? `Subtrechos críticos · ${{baseRoad}}` : 'Subtrechos críticos', metricAxisTitle2(state2.metric), 'Subtrecho / posição km'), {{ responsive: true, displaylogo: false }});
+  }}], layout2('', metricAxisTitle2(state2.metric), 'Subtrecho / posição km'), {{ responsive: true, displaylogo: false }});
   const el = document.getElementById('subSegmentChart');
   if (el.removeAllListeners) el.removeAllListeners('plotly_click');
   el.on('plotly_click', (evt) => {{
@@ -2882,38 +3190,79 @@ function renderSegChart2(rows, roads) {{
   }});
 }}
 function renderSeries2(rows) {{
-  Plotly.react('subSeriesChart', [{{
-    type: 'scatter', mode: 'lines+markers',
-    x: rows.map(r => r.ano_sinistro),
-    y: rows.map(r => Number(r[state2.metric] || 0)),
-    line: {{ color: '#0e4d92', width: 3 }},
-    marker: {{ size: 7, color: '#0e4d92' }}
-  }}], {{ ...layout2(`Evolução temporal · ${{metricNames2[state2.metric]}}`, 'Tempo (ano)', metricAxisTitle2(state2.metric)), height: 240, margin: {{ l: 50, r: 20, t: 54, b: 40 }} }}, {{ responsive: true, displaylogo: false }});
+  const selectedYear = state2.year === 'ALL' ? null : Number(state2.year);
+  const useMonthly = Number.isFinite(selectedYear) && selectedYear !== null;
+  const monthLabels = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+  const seriesTitle = `Dinâmica temporal de ${{metricNames2[state2.metric]}} em ${{currentPeriodLabel2()}}`;
+  setPanelTitle(subTitleSeriesChart, 'fa-solid fa-clock', seriesTitle);
+
+  if (useMonthly) {{
+    let scoped = monthlyTypeRows2.filter(r => Number(r.ano_sinistro) === selectedYear && (state2.road === 'ALL' || !r.Rodovia || r.Rodovia === 'ALL' || r.Rodovia === state2.road) && (state2.eventType === 'ALL' || sameType2(r)));
+    if (!scoped.length) {{
+      scoped = monthlyRows2.filter(r => Number(r.ano_sinistro) === selectedYear).map(r => ({{
+        ano_sinistro: r.ano_sinistro,
+        mes_sinistro: r.mes_sinistro,
+        evento_tipo: state2.eventType === 'ALL' ? 'ALL' : state2.eventType,
+        sinistros: Number(r.sinistros || 0),
+        obitos: Number(r.fatais || 0),
+        km_total: 1
+      }}));
+    }}
+    const activeTypes = eventTypeOrder2.filter(evt => scoped.some(r => normalizeEventType2(r) === evt));
+    const traces = (activeTypes.length ? activeTypes : ['ALL']).map(evt => {{
+      const values = Array.from({{ length: 12 }}, (_, idx) => idx + 1).map(monthNum => {{
+        const bucket = scoped.filter(r => (evt === 'ALL' || normalizeEventType2(r) === evt || r.evento_tipo === 'ALL') && Number(r.mes_sinistro) === monthNum);
+        const sinistros = bucket.reduce((acc, r) => acc + Number(r.sinistros || 0), 0);
+        const obitos = bucket.reduce((acc, r) => acc + Number(r.obitos || 0), 0);
+        const kmTotal = bucket.reduce((acc, r) => acc + Number(r.km_total || 0), 0);
+        return metricFromTotals2(sinistros, obitos, kmTotal, state2.metric);
+      }});
+      return {{
+        type: 'bar',
+        name: evt === 'ALL' ? metricNames2[state2.metric] : eventTypeNames2[evt],
+        x: monthLabels,
+        y: values,
+        marker: {{ color: evt === 'ALL' ? '#0e4d92' : eventTypeColors2[evt] }}
+      }};
+    }});
+    Plotly.react('subSeriesChart', traces, {{
+      ...layout2('', 'Tempo (mês)', metricAxisTitle2(state2.metric)),
+      height: 260,
+      barmode: 'stack',
+      margin: {{ l: 60, r: 170, t: 24, b: 56 }},
+      legend: {{ orientation: 'v', x: 1.02, y: 1, xanchor: 'left', yanchor: 'top' }}
+    }}, {{ responsive: true, displaylogo: false }});
+  }} else {{
+    Plotly.react('subSeriesChart', [{{
+      type: 'scatter', mode: 'lines+markers',
+      name: metricNames2[state2.metric],
+      x: rows.map(r => r.ano_sinistro),
+      y: rows.map(r => Number(r[state2.metric] || 0)),
+      line: {{ color: '#0e4d92', width: 3 }},
+      marker: {{ size: 7, color: '#0e4d92' }}
+    }}], {{ ...layout2('', 'Tempo (ano)', metricAxisTitle2(state2.metric)), height: 260, showlegend: false, margin: {{ l: 60, r: 40, t: 24, b: 56 }} }}, {{ responsive: true, displaylogo: false }});
+  }}
 }}
 function renderShare2(rows) {{
-  const baseRoad = state2.road !== 'ALL' ? state2.road : null;
-  const scoped = baseRoad ? rows.filter(r => r.Rodovia === baseRoad) : rows;
-  const top = [...scoped].sort((a, b) => Number(b[state2.metric] || 0) - Number(a[state2.metric] || 0)).slice(0, 5);
+  const parts = eventBreakdownForRows2(segmentEventRowsForCharts2(rows));
+  const shareTitle = `Percentual dos tipos de ${{metricNames2[state2.metric]}}<br>em ${{currentPeriodLabel2()}}`;
+  setPanelTitle(subTitleShareChart, 'fa-solid fa-chart-pie', shareTitle);
   Plotly.react('subShareChart', [{{
     type: 'pie',
     hole: 0.58,
-    labels: top.map(r => `${{r.Rodovia}} · km ${{fmt2(r.KmInicial, 1)}}`),
-    values: top.map(r => Number(r[state2.metric] || 0)),
-    customdata: top.map(r => [r.trecho_id, r.Rodovia]),
+    labels: parts.map(r => r.label),
+    values: parts.map(r => r.value),
+    customdata: parts.map(r => r.key),
     textinfo: 'percent',
     textposition: 'inside',
-    marker: {{ color: ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed'] }},
+    marker: {{ colors: parts.map(r => r.color) }},
     hovertemplate: '<b>%{{label}}</b><br>Valor: %{{value}}<br>Participação: %{{percent}}<extra></extra>'
-  }}], {{ ...layout2('Composição dos líderes'), margin: {{ l: 10, r: 10, t: 54, b: 10 }}, showlegend: true, legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }} }}, {{ responsive: true, displaylogo: false }});
+  }}], {{ ...layout2(''), margin: {{ l: 10, r: 10, t: 24, b: 10 }}, showlegend: true, legend: {{ orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }} }}, {{ responsive: true, displaylogo: false }});
   const el = document.getElementById('subShareChart');
   if (el.removeAllListeners) el.removeAllListeners('plotly_click');
   el.on('plotly_click', (evt) => {{
-    const data = evt.points?.[0]?.customdata || [];
-    if (!data.length) return;
-    state2.road = data[1];
-    subRoad.value = state2.road;
-    state2.highlightSegment = data[0];
-    state2.highlightRoad = data[1];
+    state2.eventType = evt.points?.[0]?.customdata || 'ALL';
+    subEventType.value = state2.eventType;
     renderSubDash();
   }});
 }}
