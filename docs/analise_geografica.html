@@ -156,24 +156,8 @@ footer a{color:#fff;text-decoration:none}
 
 <section class="filter-shell">
   <h2>Filtros analíticos</h2>
-  <p class="section-intro">Selecione uma rodovia, altere o indicador e use os controles para sincronizar todo o painel.</p>
+  <p class="section-intro">Escolha primeiro o indicador, depois o tipo do evento, o período e por fim a rodovia para sincronizar todo o painel.</p>
   <div class="filters">
-    <label>Rodovia
-      <select id="fltRoad">
-        <option value="" disabled selected>Selecione um valor...</option>
-        <option value="ALL">Todas as rodovias do mapa</option>
-      </select>
-    </label>
-    <label>Tipo de evento
-      <select id="fltEventType">
-        <option value="" disabled selected>Selecione um valor...</option>
-        <option value="ALL">Todos</option>
-        <option value="COLISAO">Colisão</option>
-        <option value="CHOQUE">Choque</option>
-        <option value="ATROPELAMENTO">Atropelamento</option>
-        <option value="OUTROS">Outros / não informado</option>
-      </select>
-    </label>
     <label>Indicador
       <select id="fltMetric">
         <option value="" disabled selected>Selecione um valor...</option>
@@ -183,14 +167,17 @@ footer a{color:#fff;text-decoration:none}
         <option value="indice_letalidade">Letalidade (%)</option>
       </select>
     </label>
-    <label>Ordenação
-      <select id="fltOrder">
+    <label>Tipo do evento
+      <select id="fltEventType">
         <option value="" disabled selected>Selecione um valor...</option>
-        <option value="desc">Maiores valores</option>
-        <option value="asc">Menores valores</option>
+        <option value="ALL">Todos</option>
+        <option value="COLISAO">Colisão</option>
+        <option value="CHOQUE">Choque</option>
+        <option value="ATROPELAMENTO">Atropelamento</option>
+        <option value="OUTROS">Outros / não informado</option>
       </select>
     </label>
-    <label>Ano em destaque
+    <label>Período
       <select id="fltYear">
         <option value="" disabled selected>Selecione um valor...</option>
         <option value="ALL">Todos os períodos (2014 – 2026)</option>
@@ -207,6 +194,19 @@ footer a{color:#fff;text-decoration:none}
 <option value="2024">2024</option>
 <option value="2025">2025</option>
 <option value="2026">2026</option>
+      </select>
+    </label>
+    <label>Rodovias
+      <select id="fltRoad">
+        <option value="" disabled selected>Selecione um valor...</option>
+        <option value="ALL">Todas as rodovias do mapa</option>
+      </select>
+    </label>
+    <label>Ordenação
+      <select id="fltOrder">
+        <option value="" disabled selected>Selecione um valor...</option>
+        <option value="desc">Maiores valores</option>
+        <option value="asc">Menores valores</option>
       </select>
     </label>
     <label>Top N exibido
@@ -428,23 +428,32 @@ function typeStyle(kind, family='sinistros') {
   return { symbol: '■', color: '#475569', label: 'Outros' };
 }
 
-function sameType(row) {
-  if (state.eventType === 'ALL') return true;
+function sameType(row, eventType=state.eventType) {
+  if (eventType === 'ALL') return true;
   const kind = String(row.evento_tipo || row.tp_sinistro_primario || '').toUpperCase();
-  if (state.eventType === 'ATROPELAMENTO') return kind.includes('ATROPEL');
-  if (state.eventType === 'CHOQUE') return kind.includes('CHOQUE');
-  if (state.eventType === 'COLISAO') return kind.includes('COLISAO');
+  if (eventType === 'ATROPELAMENTO') return kind.includes('ATROPEL');
+  if (eventType === 'CHOQUE') return kind.includes('CHOQUE');
+  if (eventType === 'COLISAO') return kind.includes('COLISAO');
   return !kind.includes('ATROPEL') && !kind.includes('CHOQUE') && !kind.includes('COLISAO');
 }
 
-function currentRoadRows() {
+function metricValue(row, metric=state.metric) {
+  const value = Number((row || {})[metric] || 0);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function currentRoadBaseRows() {
   let base = roadRowsAll;
   if (state.eventType !== 'ALL') {
     base = roadRowsByYearType.filter(r => sameType(r) && (state.year === 'ALL' || String(r.ano_sinistro) === String(state.year)));
   } else if (state.year !== 'ALL') {
     base = roadRowsByYear.filter(r => String(r.ano_sinistro) === String(state.year));
   }
-  return base.filter(r => state.road === 'ALL' || r.Rodovia === state.road);
+  return base;
+}
+
+function currentRoadRows() {
+  return currentRoadBaseRows().filter(r => state.road === 'ALL' || r.Rodovia === state.road);
 }
 
 function currentSegRows() {
@@ -477,16 +486,62 @@ function timeSeriesRowsScoped() {
   return out;
 }
 
+function rebuildOptions(select, options, currentValue, allLabel=null) {
+  const placeholder = { value: '', label: 'Selecione um valor...', disabled: true };
+  const allItem = allLabel ? [{ value: 'ALL', label: allLabel }] : [];
+  const items = [placeholder, ...allItem, ...options];
+  select.innerHTML = items.map(opt => `<option value="${opt.value}"${opt.disabled ? ' disabled' : ''}>${opt.label}</option>`).join('');
+  const allowed = items.filter(opt => !opt.disabled).map(opt => opt.value);
+  const nextValue = allowed.includes(currentValue) ? currentValue : (allItem[0]?.value || options[0]?.value || '');
+  select.value = nextValue;
+  return nextValue;
+}
+
+function availableEventTypes() {
+  const ordered = ['COLISAO', 'CHOQUE', 'ATROPELAMENTO', 'OUTROS'];
+  return ordered.filter(evt => roadRowsByYearType.some(r => sameType(r, evt) && metricValue(r, state.metric) > 0));
+}
+
+function availableYears() {
+  let base = state.eventType === 'ALL'
+    ? roadRowsByYear
+    : roadRowsByYearType.filter(r => sameType(r));
+  base = base.filter(r => metricValue(r, state.metric) > 0);
+  return [...new Set(base.map(r => String(r.ano_sinistro)).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+}
+
+function availableRoadRows() {
+  return currentRoadBaseRows().filter(r => metricValue(r, state.metric) > 0);
+}
+
 function fillRoadOptions() {
-  const roadLookup = Object.fromEntries(roadRowsAll.map(r => [r.Rodovia, r]));
-  const allRoads = [...new Set(malha.features.map(f => f.properties.Rodovia).filter(Boolean))].sort();
-  allRoads.forEach(name => {
-    const r = roadLookup[name] || { Rodovia: name, sinistros: 0 };
-    const opt = document.createElement('option');
-    opt.value = name;
-    opt.textContent = `${name} · ${fmt(r.sinistros)} sinistros`;
-    fltRoad.appendChild(opt);
+  state.metric = rebuildOptions(fltMetric, [
+    { value: 'sinistros', label: 'Sinistros' },
+    { value: 'obitos', label: 'Óbitos' },
+    { value: 'sinistros_por_km', label: 'Sinistros por km' },
+    { value: 'indice_letalidade', label: 'Letalidade (%)' }
+  ], state.metric);
+
+  const eventOptions = availableEventTypes().map(evt => ({ value: evt, label: eventTypeNames[evt] }));
+  state.eventType = rebuildOptions(fltEventType, eventOptions, state.eventType, 'Todos');
+
+  const yearOptions = availableYears().map(y => ({ value: y, label: y }));
+  state.year = rebuildOptions(fltYear, yearOptions, state.year, 'Todos os períodos (2014 – 2026)');
+
+  const byRoad = {};
+  availableRoadRows().forEach(r => {
+    const key = r.Rodovia;
+    if (!key) return;
+    if (!byRoad[key]) byRoad[key] = { value: key, total: 0 };
+    byRoad[key].total += metricValue(r, state.metric);
   });
+  const roadOptions = Object.values(byRoad)
+    .sort((a, b) => Number(b.total || 0) - Number(a.total || 0) || a.value.localeCompare(b.value))
+    .map(item => ({
+      value: item.value,
+      label: `${item.value} · ${fmt(item.total, state.metric.includes('km') || state.metric.includes('indice') ? 2 : 0)} ${metricNames[state.metric].toLowerCase()}`
+    }));
+  state.road = rebuildOptions(fltRoad, roadOptions, state.road, 'Todas as rodovias do mapa');
 }
 
 function kpiCard(icon, title, value, note='', cls='') {
@@ -952,6 +1007,7 @@ function renderTimeSeries() {
 
 function renderRoadRank(rows) {
   const ranked = sortRows(rows, state.metric).slice(0, state.topN).reverse();
+  const rankTitle = `Ranking de rodovias x ${metricNames[state.metric]}<br>em ${currentPeriodLabel()}`;
   Plotly.react('roadRankChart', [{
     type: 'bar',
     orientation: 'h',
@@ -961,7 +1017,10 @@ function renderRoadRank(rows) {
     textposition: 'outside',
     cliponaxis: false,
     marker: { color: ranked.map(r => pickColor(Number(r[state.metric] || 0), Math.max(...ranked.map(x => Number(x[state.metric] || 0)), 1))) }
-  }], chartLayout(`Ranking de rodovias por ${metricNames[state.metric]} · ${currentPeriodLabel()}`, metricAxisTitle(state.metric), 'Rodovia'), { responsive: true, displaylogo: false });
+  }], {
+    ...chartLayout(rankTitle, metricAxisTitle(state.metric), 'Rodovia'),
+    title: { text: rankTitle, x: 0.5, xanchor: 'center' }
+  }, { responsive: true, displaylogo: false });
   const rankChart = document.getElementById('roadRankChart');
   rankChart.removeAllListeners?.('plotly_click');
   rankChart.on('plotly_click', ev => {
@@ -1008,50 +1067,61 @@ function renderSegments(segs) {
 }
 
 function renderCompare(rows) {
+  let labels = [];
+  let values = [];
+  let colors = [];
+
   if (state.road !== 'ALL' && rows.length) {
     const r = rows[0];
     const totalVisible = currentRoadRows().reduce((a, item) => a + Number(item[state.metric] || 0), 0);
     const current = Number(r[state.metric] || 0);
     const others = Math.max(0, totalVisible - current);
-    Plotly.react('compareChart', [{
-      type: 'bar',
-      x: [state.road, 'Demais rodovias'],
-      y: [current, others],
-      text: [current, others].map(v => state.metric.includes('km') || state.metric.includes('indice') ? fmt(v, 2) : fmt(v)),
-      textposition: 'outside',
-      cliponaxis: false,
-      marker: { color: ['#0e4d92', '#cbd5e1'] }
-    }], { ...chartLayout(`Composição do risco · ${currentPeriodLabel()}`, 'Grupo de rodovias', metricAxisTitle(state.metric)), margin: { l: 50, r: 20, t: 54, b: 60 } }, { responsive: true, displaylogo: false });
+    labels = [state.road, 'Demais rodovias'];
+    values = [current, others];
+    colors = ['#0e4d92', '#cbd5e1'];
   } else {
     const ranked = sortRows(rows, state.metric).slice(0, Math.min(5, rows.length));
     const rankedSum = ranked.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
     const totalAll = rows.reduce((acc, r) => acc + Number(r[state.metric] || 0), 0);
     const others = Math.max(0, totalAll - rankedSum);
-    const labels = ranked.map(r => r.Rodovia).concat(others > 0 ? ['Outras'] : []);
-    const values = ranked.map(r => Number(r[state.metric] || 0)).concat(others > 0 ? [others] : []);
-    Plotly.react('compareChart', [{
-      type: 'bar',
-      x: labels,
-      y: values,
-      text: values.map(v => state.metric.includes('km') || state.metric.includes('indice') ? fmt(v, 2) : fmt(v)),
-      textposition: 'outside',
-      cliponaxis: false,
-      marker: { color: ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed', '#cbd5e1'] }
-    }], { ...chartLayout(`Composição consolidada do painel · ${currentPeriodLabel()}`, 'Rodovia / grupo', metricAxisTitle(state.metric)), margin: { l: 50, r: 20, t: 54, b: 70 } }, { responsive: true, displaylogo: false });
+    labels = ranked.map(r => r.Rodovia).concat(others > 0 ? ['Outras'] : []);
+    values = ranked.map(r => Number(r[state.metric] || 0)).concat(others > 0 ? [others] : []);
+    colors = ['#0e4d92', '#d52b1e', '#f7b500', '#0ea5e9', '#7c3aed', '#cbd5e1'];
   }
+
+  Plotly.react('compareChart', [{
+    type: 'pie',
+    hole: 0.58,
+    labels,
+    values,
+    textinfo: 'percent',
+    textposition: 'inside',
+    marker: { colors },
+    hovertemplate: '<b>%{label}</b><br>Valor: %{value}<br>Participação: %{percent}<extra></extra>'
+  }], {
+    ...chartLayout(`Composição do risco · ${currentPeriodLabel()}`),
+    margin: { l: 10, r: 10, t: 54, b: 10 },
+    showlegend: true,
+    legend: { orientation: 'h', y: -0.1, x: 0.5, xanchor: 'center' }
+  }, { responsive: true, displaylogo: false });
 }
 
 function renderAll() {
-  state.road = fltRoad.value || 'ALL';
-  state.eventType = fltEventType.value || 'ALL';
-  state.metric = fltMetric.value || 'sinistros';
+  state.metric = fltMetric.value || state.metric || 'sinistros';
+  state.eventType = fltEventType.value || state.eventType || 'ALL';
+  state.year = fltYear.value || state.year || 'ALL';
+  state.road = fltRoad.value || state.road || 'ALL';
   state.order = fltOrder.value || 'desc';
-  state.year = fltYear.value || 'ALL';
   state.topN = Number(fltTopN.value);
+
+  fillRoadOptions();
+  fltMetric.value = state.metric;
+  fltEventType.value = state.eventType;
+  fltYear.value = state.year;
+  fltRoad.value = state.road;
+
   syncRoadLayerPanelFromFilter();
-  topNLabel.textContent = fltRoad.value
-    ? `Exibindo Top ${state.topN} · Camadas da malha sincronizadas com o filtro de rodovia.`
-    : `Exibindo Top ${state.topN} · Selecione uma rodovia para ativar a malha no mapa.`;
+  topNLabel.textContent = `Exibindo Top ${state.topN} · Filtros encadeados em Indicador → Tipo do evento → Período → Rodovias.`;
 
   const rows = currentRoadRows();
   const segs = currentSegRows();
@@ -1106,7 +1176,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
 <footer>
   <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
   <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
-  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 17/04/2026 23:54</div>
+  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 18/04/2026 00:22</div>
 </footer>
 
 </body></html>
