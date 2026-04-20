@@ -65,13 +65,45 @@ footer a{color:#fff;text-decoration:none}
 #map,#mapSub{height:720px;border-radius:14px;border:1px solid #dbe3ee}
 .legend-map{background:white;padding:10px 12px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.16);font-size:.85em;line-height:1.55;max-width:260px}
 .legend-map .sw{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:middle}
-.layer-sidebar{background:rgba(255,255,255,.96);padding:10px 12px;border-radius:10px;box-shadow:0 8px 24px rgba(15,23,42,.18);min-width:240px;max-width:280px;font-size:.84em;line-height:1.45;border:1px solid #dbe3ee}
-.layer-sidebar h4{margin:0 0 8px;color:var(--azul);font-size:.95em}
-.layer-group{border-top:1px solid #e5e7eb;padding-top:8px;margin-top:8px}
-.layer-group:first-of-type{border-top:none;padding-top:0;margin-top:0}
-.layer-group .master{font-weight:700;color:#0b3a70;display:flex;gap:8px;align-items:center}
-.layer-items{padding-left:20px;margin-top:6px;display:grid;gap:4px}
-.layer-items label{display:flex;gap:8px;align-items:center;color:#334155}
+#map .leaflet-control-container .leaflet-top.leaflet-left{height:100%;margin-top:0}
+.leaflet-left .layer-sidebar{margin-left:0;margin-top:0}
+.layer-sidebar{background:linear-gradient(180deg,rgba(255,255,255,.98) 0%,rgba(244,248,255,.98) 100%);width:310px;height:100%;padding:10px 10px 12px;border-radius:14px 0 0 14px;box-shadow:0 10px 30px rgba(15,23,42,.18);font-size:.84em;line-height:1.35;border:1px solid #dbe3ee;display:flex;flex-direction:column;gap:6px;overflow:hidden;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px)}
+.layer-sidebar.collapsed{width:44px;padding:6px;border-radius:12px;gap:0;background:rgba(255,255,255,.98)}
+.layer-sidebar.collapsed .layer-sidebar__body,.layer-sidebar.collapsed .layer-sidebar__meta,.layer-sidebar.collapsed .layer-sidebar__title{display:none}
+.layer-sidebar.collapsed .layer-sidebar__header{justify-content:center}
+.layer-sidebar__header{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.layer-sidebar__title h4{margin:0;color:var(--azul);font-size:1.02em}
+.layer-sidebar__title p{margin:3px 0 0;color:#64748b;font-size:.82em}
+.layer-sidebar__toggle{border:none;background:#0e4d92;color:#fff;width:32px;height:32px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 8px 18px rgba(14,77,146,.18)}
+.layer-sidebar__toggle:hover{background:#0b3a70}
+.layer-sidebar__meta{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:12px;background:#edf4ff;border:1px solid #d6e5ff;color:#0b3a70}
+.layer-sidebar__meta strong{font-size:.86em}
+.layer-sidebar__body{overflow:auto;padding-right:2px}
+.layer-sidebar__body::-webkit-scrollbar{width:8px}
+.layer-sidebar__body::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px}
+.layer-group{border:1px solid #e2e8f0;padding:6px 8px;margin-top:3px;border-radius:10px;background:#fff}
+.layer-group:first-of-type{margin-top:0}
+.layer-group .master{font-weight:800;color:#0b3a70;display:flex;gap:8px;align-items:center;justify-content:space-between}
+.layer-label{display:flex;gap:8px;align-items:center}
+.layer-status{display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;font-size:.74em;font-weight:800;letter-spacing:.02em;background:#e2e8f0;color:#334155;min-width:74px}
+.layer-status.is-loading{background:#fff7ed;color:#c2410c}
+.layer-status.is-active{background:#dcfce7;color:#166534}
+.layer-status.is-off{background:#e2e8f0;color:#475569}
+.layer-items{padding-left:4px;margin-top:3px;display:grid;gap:2px}
+.layer-items label{display:flex;gap:8px;align-items:center;color:#334155;padding:2px 6px;border-radius:6px;transition:.15s ease}
+.layer-items label:hover{background:#f8fafc}
+.layer-items input,.layer-group .master input{accent-color:#0e4d92}
+.layer-section{display:grid;gap:8px}
+.layer-section__title{font-size:.75em;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#64748b;margin:2px 4px}
+.layer-empty{padding:6px 8px;color:#94a3b8;font-size:.82em}
+.leaflet-top.leaflet-right{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.leaflet-top.leaflet-right .leaflet-control{margin:0}
+.leaflet-control-zoom{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.16)!important;border-radius:12px!important;overflow:hidden}
+.leaflet-control-zoom a{width:38px;height:38px;line-height:38px;font-size:18px;color:#0b3a70}
+.map-toolbar{display:flex;flex-direction:column;gap:8px;background:rgba(255,255,255,.96);padding:8px;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.16);border:1px solid #dbe3ee}
+.map-tool-btn{width:38px;height:38px;border:none;border-radius:10px;background:#fff;color:#0b3a70;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px}
+.map-tool-btn:hover,.map-tool-btn.active{background:#eef4ff;color:#0e4d92}
+.leaflet-container.inspect-mode,.leaflet-container.inspect-mode .leaflet-interactive{cursor:pointer!important}
 .sym-marker span{display:inline-flex;align-items:center;justify-content:center;font-weight:800;text-shadow:0 1px 1px rgba(255,255,255,.6)}
 .sym-marker.point span{font-size:16px}
 .sym-marker.micro span{font-size:11px}
@@ -92,20 +124,26 @@ footer a{color:#fff;text-decoration:none}
 .geo-rail-five{grid-template-columns:repeat(2,minmax(260px,1fr));align-items:stretch}
 .geo-rail-five .span-2{grid-column:1 / -1}
 .geo-panel{background:white;padding:18px;border-radius:16px;box-shadow:0 4px 16px rgba(15,23,42,.06);border:1px solid #dbe3ee;min-width:0}
-.geo-panel.map-panel{position:sticky;top:76px}
-.map-composite{display:grid;grid-template-columns:minmax(640px,1.2fr) minmax(480px,1fr);gap:18px;align-items:stretch}
-.map-stage{display:flex;flex-direction:column;gap:10px;height:100%}
-.map-stage #map,.map-stage #mapSub{flex:1 1 auto;height:100%;min-height:860px}
-.geo-rail .geo-panel h2{font-size:1em;margin-bottom:10px;text-align:center;line-height:1.25;display:block;width:100%}
-.plot-host{width:100%;min-height:280px}
-.plot-timeline{min-height:320px;margin-top:8px}
-.layer-hint{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
-.layer-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#eef4ff;color:var(--azul);font-size:.82em;font-weight:600}
-.map-tip{background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:11px 13px;margin-top:14px;color:var(--muted);font-size:.9em}
+.geo-panel.map-panel{position:static}
+.map-composite{display:grid;grid-template-columns:minmax(220px,.72fr) minmax(760px,2.05fr) minmax(220px,.72fr);gap:12px;align-items:stretch}
+.map-stage{display:flex;flex-direction:column;gap:8px;height:100%;grid-column:2}
+.map-stage #map,.map-stage #mapSub{flex:1 1 auto;height:100%;min-height:760px}
+.geo-rail{display:grid;grid-template-columns:1fr;grid-auto-rows:1fr;gap:12px;align-content:stretch;height:100%}
+.geo-rail-five{grid-template-columns:1fr;grid-template-rows:1fr 1fr;align-items:stretch}
+.geo-rail-left{grid-column:1}
+.geo-rail-right{grid-column:3}
+.geo-rail-left .geo-panel,.geo-rail-right .geo-panel{height:auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.geo-rail-left .geo-panel .plot-host,.geo-rail-right .geo-panel .plot-host{flex:1 1 auto;min-height:0}
+.geo-panel.full-width{grid-column:1 / -1}
+.geo-rail .geo-panel h2,.map-stage h2{font-size:1em;margin-bottom:8px;text-align:center;line-height:1.25;display:block;width:100%}
+.plot-host{width:100%;min-height:0;flex:1 1 auto}
+.plot-timeline{min-height:260px;margin-top:4px}
 .leaflet-control-layers{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.18)!important;border-radius:10px!important}
 .leaflet-control-layers-expanded{padding:10px 12px;background:white}
 .leaflet-popup-content{line-height:1.45}
 .small-note{color:var(--muted);font-size:.92em;margin-top:6px}
+.hero-note{font-size:.9em;opacity:.85}
+.footer-note{margin-top:6px;color:#94a3b8;font-size:.85em}
 @media (max-width: 1100px){
   main,.geo-main{padding:16px}
   .kpis,.portal-kpis,.card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -115,11 +153,12 @@ footer a{color:#fff;text-decoration:none}
   .filter-shell,.stats-shell,.analytics-shell{padding:16px}
   .geo-board{grid-template-columns:1fr;padding:12px}
   .geo-rail,.geo-rail-five{grid-template-columns:1fr}
-  .geo-rail-five .span-2{grid-column:auto}
-  .map-composite{grid-template-columns:1fr}
+  .map-composite{grid-template-columns:1fr;gap:12px}
   .geo-panel.map-panel{position:static}
+  .geo-rail-left,.geo-rail-right,.map-stage,.geo-panel.full-width{grid-column:auto}
+  .geo-rail-left .geo-panel,.geo-rail-right .geo-panel{height:auto}
   #map,#mapSub{height:560px}
-  .map-stage #map{min-height:560px}
+  .map-stage #map,.map-stage #mapSub{min-height:560px}
 }
 @media (max-width: 680px){
   .kpis,.portal-kpis,.card-grid{grid-template-columns:1fr}
@@ -136,16 +175,16 @@ footer a{color:#fff;text-decoration:none}
 <nav class="top">
   <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
   <a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a>
-  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dash Rodovias</a>
-  <a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dash Subtrechos</a>
+  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Painel Rodovias + Subtrechos</a>
+  <a href="analise_geografica.html"><i class="fa-solid fa-route"></i> Detalhe integrado</a>
   <a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a>
   <a href="GUIA_ACESSO.html"><i class="fa-solid fa-book"></i> Guia</a>
 </nav>
 
 
 <header class="hero">
-  <h1>Dashboard 1 — Análise por Rodovias</h1>
-  <p>Cruzamento Infosiga × Malha DER/SP · leitura por rodovia, tipo de evento e ano · com apoio da malha completa</p>
+  <h1>Dashboard Integrado — Rodovias e Subtrechos</h1>
+  <p>Cruzamento Infosiga × Malha DER/SP · leitura macro por rodovia e micro por subtrecho em um único painel</p>
 </header>
 <main class="geo-main">
 <section class="stats-shell">
@@ -156,7 +195,7 @@ footer a{color:#fff;text-decoration:none}
 
 <section class="filter-shell">
   <h2>Filtros analíticos</h2>
-  <p class="section-intro">Escolha primeiro o indicador, depois o tipo do evento, o período e por fim a rodovia para sincronizar todo o painel.</p>
+  <p class="section-intro">Escolha o indicador, o tipo do evento, o período e a rodovia para analisar em sequência a visão macro do corredor e o detalhe dos subtrechos críticos.</p>
   <div class="filters">
     <label>Indicador
       <select id="fltMetric">
@@ -217,32 +256,16 @@ footer a{color:#fff;text-decoration:none}
   <div class="checkline">
     <span id="topNLabel" class="small-note">Exibindo Top 8 · O checkbox do grupo controla todas as camadas internas do Leaflet.</span>
   </div>
-  <div class="layer-hint">
-    <span class="layer-chip">Período analisado: 2014 – 2026</span>
-    <span class="layer-chip">Mapa e gráficos 100% sincronizados</span>
-    <span class="layer-chip">Cores e símbolos por categoria</span>
-  </div>
+
 </section>
 
 <section class="analytics-shell">
   <h2>Painel analítico</h2>
-  <p id="map-caption" class="section-intro">Mapa e gráficos lado a lado, com resposta cruzada a todos os filtros do painel.</p>
+  <p id="map-caption" class="section-intro">O painel foi reorganizado com dois gráficos à esquerda do mapa, dois à direita e a leitura temporal ocupando toda a largura inferior.</p>
   <div class="geo-board geo-board-inline">
     <section class="geo-panel map-panel">
       <div class="map-composite">
-        <div class="map-stage">
-          <h2><i class="fa-solid fa-map-location-dot"></i> Mapa DER com camadas</h2>
-          <div id="map"></div>
-          <div class="layer-hint">
-            <span class="layer-chip">Trechos DER por criticidade</span>
-            <span class="layer-chip">Eventos por tipo</span>
-            <span class="layer-chip">Pontos fatais</span>
-            <span class="layer-chip">Mapa de calor</span>
-          </div>
-          <div class="map-tip">Os grupos da barra lateral do mapa ligam ou desligam automaticamente todas as camadas internas.</div>
-        </div>
-
-        <div class="geo-rail geo-rail-five">
+        <div class="geo-rail geo-rail-five geo-rail-left">
           <section class="geo-panel">
             <h2 id="geoTitleRank"><i class="fa-solid fa-trophy"></i> Ranking de rodovias</h2>
             <div id="roadRankChart" class="plot-host"></div>
@@ -252,7 +275,15 @@ footer a{color:#fff;text-decoration:none}
             <h2 id="geoTitleShare"><i class="fa-solid fa-circle-notch"></i> Participação no indicador</h2>
             <div id="bubbleChart" class="plot-host"></div>
           </section>
+        </div>
 
+        <div class="map-stage">
+          <h2><i class="fa-solid fa-map-location-dot"></i> Mapa de situação</h2>
+          <div id="map"></div>
+
+        </div>
+
+        <div class="geo-rail geo-rail-five geo-rail-right">
           <section class="geo-panel">
             <h2 id="geoTitleSegments"><i class="fa-solid fa-route"></i> Subtrechos da rodovia selecionada</h2>
             <div id="segmentChart" class="plot-host"></div>
@@ -262,12 +293,12 @@ footer a{color:#fff;text-decoration:none}
             <h2 id="geoTitleRisk"><i class="fa-solid fa-chart-pie"></i> Composição do risco</h2>
             <div id="compareChart" class="plot-host"></div>
           </section>
-
-          <section class="geo-panel span-2">
-            <h2 id="geoTitleTimeline"><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
-            <div id="timelineChart" class="plot-host plot-timeline"></div>
-          </section>
         </div>
+
+        <section class="geo-panel full-width">
+          <h2 id="geoTitleTimeline"><i class="fa-solid fa-clock"></i> Leitura temporal integrada</h2>
+          <div id="timelineChart" class="plot-host plot-timeline"></div>
+        </section>
       </div>
     </section>
   </div>
@@ -333,6 +364,7 @@ async function ensureGeoAnalyticsLoaded() {
 async function ensureGeoOverlaysLoaded() {
   if (geoOverlaysLoaded) return;
   if (geoOverlaysLoading) return geoOverlaysLoading;
+  if (typeof updateLayerLoadStatus === 'function') updateLayerLoadStatus();
   geoOverlaysLoading = fetch(GEO_OVERLAY_URL, { cache: 'force-cache' })
     .then((response) => {
       if (!response.ok) throw new Error(`Falha ao carregar camadas geográficas: ${response.status}`);
@@ -345,6 +377,7 @@ async function ensureGeoOverlaysLoaded() {
       heatSinistros = data.heatSinistros || { points: [] };
       heatObitos = data.heatObitos || { points: [] };
       geoOverlaysLoaded = true;
+      if (typeof updateLayerLoadStatus === 'function') updateLayerLoadStatus();
     })
     .finally(() => { geoOverlaysLoading = null; });
   return geoOverlaysLoading;
@@ -365,7 +398,8 @@ const state = {
   showObitosGroup: false, showObitosPoints: false, showObitosMicros: false, obitosUseYear: false,
   showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: false, sinistrosUseYear: false,
   showHeatGroup: false, showHeatObitos: false, showHeatSinistros: false, heatUseYear: false,
-  showMalhaGroup: false, showMalhaSP: false, showMalhaSPA: false, showMalhaSPI: false, showMalhaSPM: false, showMalhaOUTRAS: false
+  showSistemaGroup: true, showSistemaSemRegistro: true, showSistemaBaixo: true, showSistemaModerado: true, showSistemaAlto: true, showSistemaCritico: true,
+  baseMap: 'light'
 };
 const metricNames = {
   sinistros: 'Sinistros',
@@ -426,6 +460,15 @@ function severityClass(value, maxValue) {
   if (ratio >= 0.6) return { label: 'Alto', color: '#b91c1c' };
   if (ratio >= 0.35) return { label: 'Moderado', color: '#f97316' };
   return { label: 'Baixo', color: '#facc15' };
+}
+
+function roadSystemClass(row, maxValue) {
+  const sinistros = Number(row?.sinistros || 0);
+  const obitos = Number(row?.obitos || row?.vitimas_fatais || 0);
+  if (sinistros <= 0 && obitos <= 0) return { key: 'SemRegistro', label: 'Sem registros no recorte', color: '#94a3b8' };
+  const sev = severityClass(Number(row?.[state.metric] || 0), maxValue);
+  const keyMap = { 'Baixo': 'Baixo', 'Moderado': 'Moderado', 'Alto': 'Alto', 'Crítico': 'Critico' };
+  return { key: keyMap[sev.label] || 'Baixo', label: sev.label, color: sev.color };
 }
 
 function typeStyle(kind, family='sinistros') {
@@ -530,6 +573,18 @@ function currentSegRows() {
     return base.filter(r => keepRoads.has(r.Rodovia));
   }
   return base.filter(r => r.Rodovia === state.road);
+}
+
+function filteredSegRowsForMap() {
+  let base = segRowsAll;
+  if (state.eventType !== 'ALL' && state.year !== 'ALL') {
+    base = segRowsByYearType.filter(r => sameType(r) && String(r.ano_sinistro) === String(state.year));
+  } else if (state.eventType !== 'ALL') {
+    base = segRowsByType.filter(r => sameType(r));
+  } else if (state.year !== 'ALL') {
+    base = segRowsByYear.filter(r => String(r.ano_sinistro) === String(state.year));
+  }
+  return base;
 }
 
 function timeSeriesRowsScoped() {
@@ -673,8 +728,12 @@ function updateKpis(rows, segs) {
     : `Painel integrado da rodovia ${state.road}. Indicador: ${metricNames[state.metric]}. Tema: ${tipoTxt}. Período: ${periodoTxt}.`;
 }
 
-const mapa = L.map('map', { zoomControl: true }).setView([-22.5, -48.5], 7);
+const mapa = L.map('map', { zoomControl: false }).setView([-22.5, -48.5], 7);
 const baseLight = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }).addTo(mapa);
+const baseDark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { attribution: '© OpenStreetMap © CARTO', maxZoom: 19 });
+const baseOsm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap', maxZoom: 19 });
+const basemapOptions = { light: baseLight, dark: baseDark, osm: baseOsm };
+L.control.zoom({ position: 'topright' }).addTo(mapa);
 mapa.attributionControl.setPrefix(false);
 window.addEventListener('load', () => setTimeout(() => mapa.invalidateSize(), 120));
 window.addEventListener('resize', () => mapa.invalidateSize());
@@ -688,11 +747,11 @@ mapa.getPane('paneObMicro').style.zIndex = 630;
 
 let roadLayer = null;
 const overlayGroups = {
-  malhaSP: L.layerGroup().addTo(mapa),
-  malhaSPA: L.layerGroup().addTo(mapa),
-  malhaSPI: L.layerGroup().addTo(mapa),
-  malhaSPM: L.layerGroup().addTo(mapa),
-  malhaOUTRAS: L.layerGroup().addTo(mapa),
+  sistemaSemRegistro: L.layerGroup().addTo(mapa),
+  sistemaBaixo: L.layerGroup().addTo(mapa),
+  sistemaModerado: L.layerGroup().addTo(mapa),
+  sistemaAlto: L.layerGroup().addTo(mapa),
+  sistemaCritico: L.layerGroup().addTo(mapa),
   heatSinistros: L.layerGroup().addTo(mapa),
   heatObitos: L.layerGroup().addTo(mapa),
   sinistrosPoints: L.layerGroup().addTo(mapa),
@@ -707,13 +766,13 @@ const legendHtmlMap = {
   sinistrosMicros: '<b>Legenda — Sinistros por categoria</b><br><span style="color:#0e4d92;font-weight:800">●</span> Colisão<br><span style="color:#0891b2;font-weight:800">◆</span> Choque<br><span style="color:#6d28d9;font-weight:800">▲</span> Atropelamento<br><span style="color:#475569;font-weight:800">■</span> Outros',
   heatObitos: '<b>Legenda — Mapa de calor de óbitos</b><br><span class="sw" style="background:#fee2e2"></span> Baixo<br><span class="sw" style="background:#ef4444"></span> Médio<br><span class="sw" style="background:#7f1d1d"></span> Alto',
   heatSinistros: '<b>Legenda — Mapa de calor de sinistros</b><br><span class="sw" style="background:#dbeafe"></span> Baixo<br><span class="sw" style="background:#2563eb"></span> Médio<br><span class="sw" style="background:#0b3a70"></span> Alto',
-  malhaSP: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
-  malhaSPA: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
-  malhaSPI: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM/BR)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
-  malhaSPM: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM/BR)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo',
-  malhaOUTRAS: '<b>Legenda — Malha estadual (SP/SPA/SPI/SPM/BR)</b><br><span class="sw" style="background:#7f1d1d"></span> Crítico<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#facc15"></span> Baixo'
+  sistemaSemRegistro: '<b>Legenda — Sistema rodoviário estadual</b><br><span class="sw" style="background:#94a3b8"></span> Sem registros no recorte<br><span class="sw" style="background:#facc15"></span> Baixo<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#7f1d1d"></span> Crítico',
+  sistemaBaixo: '<b>Legenda — Sistema rodoviário estadual</b><br><span class="sw" style="background:#94a3b8"></span> Sem registros no recorte<br><span class="sw" style="background:#facc15"></span> Baixo<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#7f1d1d"></span> Crítico',
+  sistemaModerado: '<b>Legenda — Sistema rodoviário estadual</b><br><span class="sw" style="background:#94a3b8"></span> Sem registros no recorte<br><span class="sw" style="background:#facc15"></span> Baixo<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#7f1d1d"></span> Crítico',
+  sistemaAlto: '<b>Legenda — Sistema rodoviário estadual</b><br><span class="sw" style="background:#94a3b8"></span> Sem registros no recorte<br><span class="sw" style="background:#facc15"></span> Baixo<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#7f1d1d"></span> Crítico',
+  sistemaCritico: '<b>Legenda — Sistema rodoviário estadual</b><br><span class="sw" style="background:#94a3b8"></span> Sem registros no recorte<br><span class="sw" style="background:#facc15"></span> Baixo<br><span class="sw" style="background:#f97316"></span> Moderado<br><span class="sw" style="background:#b91c1c"></span> Alto<br><span class="sw" style="background:#7f1d1d"></span> Crítico'
 };
-const legendPriority = ['obitosMicros','obitosPoints','sinistrosMicros','sinistrosPoints','heatObitos','heatSinistros','malhaOUTRAS','malhaSPM','malhaSPI','malhaSPA','malhaSP'];
+const legendPriority = ['obitosMicros','obitosPoints','sinistrosMicros','sinistrosPoints','heatObitos','heatSinistros','sistemaCritico','sistemaAlto','sistemaModerado','sistemaBaixo','sistemaSemRegistro'];
 const legend = L.control({ position: 'bottomright' });
 legend.onAdd = () => {
   const d = L.DomUtil.create('div', 'legend-map');
@@ -727,45 +786,160 @@ const layerPanel = L.control({ position: 'topleft' });
 layerPanel.onAdd = () => {
   const div = L.DomUtil.create('div', 'layer-sidebar');
   div.innerHTML = `
-    <h4>Camadas do mapa</h4>
-    <div class="layer-group">
-      <label class="master"><input id="grpObitos" type="checkbox" /> Óbitos</label>
-      <div class="layer-items">
-        <label><input id="lyObitosPoints" type="checkbox" /> Pontos</label>
-        <label><input id="lyObitosMicros" type="checkbox" /> Micropontos</label>
-        <label><input id="lyObitosYear" type="checkbox" /> Mostrar por ano do painel</label>
+    <div class="layer-sidebar__header">
+      <div class="layer-sidebar__title">
+        <h4>Camadas do mapa</h4>
+        <p>Organização por grupo real do projeto</p>
       </div>
+      <button id="toggleLayerSidebar" class="layer-sidebar__toggle" type="button" title="Ocultar ou expandir painel" aria-label="Ocultar ou expandir painel">
+        <i class="fa-solid fa-angles-left"></i>
+      </button>
     </div>
-    <div class="layer-group">
-      <label class="master"><input id="grpSinistros" type="checkbox" /> Sinistros</label>
-      <div class="layer-items">
-        <label><input id="lySinistrosPoints" type="checkbox" /> Pontos</label>
-        <label><input id="lySinistrosMicros" type="checkbox" /> Micropontos</label>
-        <label><input id="lySinistrosYear" type="checkbox" /> Mostrar por ano do painel</label>
+    <div class="layer-sidebar__meta">
+      <strong>Estado</strong>
+      <span id="layerGlobalStatus" class="layer-status is-active">Pronto</span>
+    </div>
+    <div class="layer-sidebar__body">
+      <div class="layer-group">
+        <label class="master">
+          <span class="layer-label"><input id="grpInfosiga" type="checkbox" /> Dados INFOSIGA</span>
+          <span id="statusInfosiga" class="layer-status is-off">Oculta</span>
+        </label>
+        <div class="layer-items">
+          <label><input id="lySinistrosMicros" type="checkbox" /> Sinistros - pontos</label>
+          <label><input id="lySinistrosPoints" type="checkbox" /> Sinistros - macropontos</label>
+          <label><input id="lyObitosMicros" type="checkbox" /> Óbitos - pontos</label>
+          <label><input id="lyObitosPoints" type="checkbox" /> Óbitos - macropontos</label>
+        </div>
       </div>
-    </div>
-    <div class="layer-group">
-      <label class="master"><input id="grpHeat" type="checkbox" /> Mapas de calor</label>
-      <div class="layer-items">
-        <label><input id="lyHeatObitos" type="checkbox" /> Óbitos</label>
-        <label><input id="lyHeatSinistros" type="checkbox" /> Sinistros</label>
-        <label><input id="lyHeatYear" type="checkbox" /> Mostrar por ano do painel</label>
+      <div class="layer-group">
+        <label class="master">
+          <span class="layer-label"><input id="grpSistema" type="checkbox" checked /> Malha rodoviária estadual</span>
+          <span id="statusSistema" class="layer-status is-active">Ativa</span>
+        </label>
+        <div class="layer-items">
+          <label><input id="lySistemaSemRegistro" type="checkbox" checked /> Sem sinistros / óbitos</label>
+          <label><input id="lySistemaBaixo" type="checkbox" checked /> Baixo</label>
+          <label><input id="lySistemaModerado" type="checkbox" checked /> Moderado</label>
+          <label><input id="lySistemaAlto" type="checkbox" checked /> Alto</label>
+          <label><input id="lySistemaCritico" type="checkbox" checked /> Crítico</label>
+        </div>
       </div>
-    </div>
-    <div class="layer-group">
-      <label class="master"><input id="grpMalha" type="checkbox" /> Malha rodoviária estadual</label>
-      <div class="layer-items">
-        <label><input id="lyMalhaSP" type="checkbox" /> SP</label>
-        <label><input id="lyMalhaSPA" type="checkbox" /> SPA</label>
-        <label><input id="lyMalhaSPI" type="checkbox" /> SPI</label>
-        <label><input id="lyMalhaSPM" type="checkbox" /> SPM</label>
-        <label><input id="lyMalhaOUTRAS" type="checkbox" /> BR / outras</label>
+      <div class="layer-group">
+        <label class="master">
+          <span class="layer-label"><input id="grpHeat" type="checkbox" /> Calor</span>
+          <span id="statusHeat" class="layer-status is-off">Oculta</span>
+        </label>
+        <div class="layer-items">
+          <label><input id="lyHeatObitos" type="checkbox" /> Mapa de calor - Óbitos</label>
+          <label><input id="lyHeatSinistros" type="checkbox" /> Mapa de calor - Sinistros</label>
+        </div>
+      </div>
+      <div class="layer-group">
+        <label class="master">
+          <span class="layer-label">Base map</span>
+          <span id="statusBasemap" class="layer-status is-active">Clara</span>
+        </label>
+        <div class="layer-items">
+          <label><input name="basemapChoice" value="light" type="radio" checked /> Carto claro</label>
+          <label><input name="basemapChoice" value="dark" type="radio" /> Carto escuro</label>
+          <label><input name="basemapChoice" value="osm" type="radio" /> OpenStreetMap</label>
+        </div>
       </div>
     </div>`;
   L.DomEvent.disableClickPropagation(div);
+  L.DomEvent.disableScrollPropagation(div);
+  const toggleBtn = div.querySelector('#toggleLayerSidebar');
+  toggleBtn?.addEventListener('click', () => toggleSidebarPanel());
   return div;
 };
 layerPanel.addTo(mapa);
+
+function toggleSidebarPanel() {
+  const sidebar = document.querySelector('.layer-sidebar');
+  const toggleBtn = document.getElementById('toggleLayerSidebar');
+  if (!sidebar || !toggleBtn) return;
+  sidebar.classList.toggle('collapsed');
+  toggleBtn.innerHTML = sidebar.classList.contains('collapsed')
+    ? '<i class="fa-solid fa-angles-right"></i>'
+    : '<i class="fa-solid fa-angles-left"></i>';
+  setTimeout(() => mapa.invalidateSize(), 180);
+}
+
+let inspectMode = false;
+
+function flashHighlight(target) {
+  if (!target) return;
+  const layers = typeof target.eachLayer === 'function' ? [] : [target];
+  if (typeof target.eachLayer === 'function') target.eachLayer(l => layers.push(l));
+  layers.forEach(l => {
+    if (!l.setStyle || !l.options) return;
+    const original = { color: l.options.color, weight: l.options.weight, opacity: l.options.opacity };
+    l.setStyle({ color: '#ffd400', weight: (Number(original.weight) || 3) + 4, opacity: 1 });
+    if (l.bringToFront) l.bringToFront();
+    setTimeout(() => { try { l.setStyle(original); } catch (e) {} }, 1400);
+  });
+}
+
+function visibleLayerNames() {
+  const names = [];
+  if (state.showSinistrosMicros) names.push('Sinistros - pontos');
+  if (state.showSinistrosPoints) names.push('Sinistros - macropontos');
+  if (state.showObitosMicros) names.push('Óbitos - pontos');
+  if (state.showObitosPoints) names.push('Óbitos - macropontos');
+  if (state.showHeatObitos) names.push('Mapa de calor - Óbitos');
+  if (state.showHeatSinistros) names.push('Mapa de calor - Sinistros');
+  if (state.showSistemaGroup) names.push('Malha rodoviária estadual');
+  return names;
+}
+
+function showFeatureInfo(latlng = mapa.getCenter()) {
+  const layers = visibleLayerNames();
+  const baseName = ({ light: 'Carto claro', dark: 'Carto escuro', osm: 'OpenStreetMap' }[state.baseMap] || 'Carto claro');
+  const html = `<b>Informações do mapa</b><br>Base: ${baseName}<br>Rodovia foco: ${state.road === 'ALL' ? 'Todas' : state.road}<br>Camadas visíveis: ${layers.length ? layers.join(', ') : 'nenhuma'}${latlng ? `<br>Coordenadas: ${latlng.lat.toFixed(5)}, ${latlng.lng.toFixed(5)}` : ''}`;
+  L.popup({ maxWidth: 320 }).setLatLng(latlng).setContent(html).openOn(mapa);
+}
+
+const mapTools = L.control({ position: 'topright' });
+mapTools.onAdd = () => {
+  const div = L.DomUtil.create('div', 'map-toolbar');
+  div.innerHTML = `
+    <button id="btnHomeView" class="map-tool-btn" type="button" title="Reenquadrar mapa" aria-label="Reenquadrar mapa"><i class="fa-solid fa-house"></i></button>
+    <button id="btnFeatureInfo" class="map-tool-btn" type="button" title="Obter informações das camadas e feições" aria-label="Obter informações das camadas e feições"><i class="fa-solid fa-hand-pointer"></i></button>
+    <button id="btnToggleLegend" class="map-tool-btn" type="button" title="Mostrar ou ocultar legenda" aria-label="Mostrar ou ocultar legenda"><i class="fa-solid fa-layer-group"></i></button>
+    <button id="btnToggleSidebarToolbar" class="map-tool-btn" type="button" title="Mostrar ou ocultar painel lateral" aria-label="Mostrar ou ocultar painel lateral"><i class="fa-solid fa-sliders"></i></button>`;
+  L.DomEvent.disableClickPropagation(div);
+  L.DomEvent.disableScrollPropagation(div);
+  div.querySelector('#btnHomeView')?.addEventListener('click', () => {
+    if (roadLayer && roadLayer.getBounds && roadLayer.getBounds().isValid()) mapa.fitBounds(roadLayer.getBounds(), { padding: [18, 18] });
+    else mapa.setView([-22.5, -48.5], 7);
+  });
+  div.querySelector('#btnFeatureInfo')?.addEventListener('click', (event) => {
+    inspectMode = !inspectMode;
+    event.currentTarget.classList.toggle('active', inspectMode);
+    mapa.getContainer().classList.toggle('inspect-mode', inspectMode);
+  });
+  div.querySelector('#btnToggleLegend')?.addEventListener('click', () => {
+    if (legend && legend._div) legend._div.style.display = legend._div.style.display === 'none' ? '' : 'none';
+  });
+  div.querySelector('#btnToggleSidebarToolbar')?.addEventListener('click', () => toggleSidebarPanel());
+  return div;
+};
+mapTools.addTo(mapa);
+L.control.scale({ position: 'bottomright', imperial: false }).addTo(mapa);
+mapa.on('popupopen', (e) => {
+  if (!inspectMode) {
+    mapa.closePopup(e.popup);
+  }
+});
+mapa.on('click', (event) => {
+  if (!inspectMode) return;
+  // Se o clique foi sobre uma feature com popup, o Leaflet abre sozinho.
+  // Caso contrário, mostra um resumo do estado do mapa.
+  setTimeout(() => {
+    if (!mapa._popup) showFeatureInfo(event.latlng);
+  }, 30);
+});
 
 function setLayerVisible(group, visible) {
   if (visible) { if (!mapa.hasLayer(group)) group.addTo(mapa); }
@@ -803,41 +977,92 @@ function roadCategoryMatch(feature, cat) {
   return roadCategoryFromName(feature?.properties?.Rodovia) === cat;
 }
 function syncRoadLayerPanelFromFilter() {
-  const selectedRoad = fltRoad.value || state.road || '';
-  const hasRoadSelection = !!selectedRoad;
-  const showAllRoads = selectedRoad === 'ALL';
-  const selectedCat = (!showAllRoads && hasRoadSelection) ? roadCategoryFromName(selectedRoad) : null;
-
-  state.showMalhaGroup = hasRoadSelection;
-  state.showMalhaSP = showAllRoads || selectedCat === 'SP';
-  state.showMalhaSPA = showAllRoads || selectedCat === 'SPA';
-  state.showMalhaSPI = showAllRoads || selectedCat === 'SPI';
-  state.showMalhaSPM = showAllRoads || selectedCat === 'SPM';
-  state.showMalhaOUTRAS = showAllRoads || selectedCat === 'OUTRAS';
-
-  const master = document.getElementById('grpMalha');
+  const master = document.getElementById('grpSistema');
   const flagMap = {
-    lyMalhaSP: state.showMalhaSP,
-    lyMalhaSPA: state.showMalhaSPA,
-    lyMalhaSPI: state.showMalhaSPI,
-    lyMalhaSPM: state.showMalhaSPM,
-    lyMalhaOUTRAS: state.showMalhaOUTRAS
+    lySistemaSemRegistro: state.showSistemaSemRegistro,
+    lySistemaBaixo: state.showSistemaBaixo,
+    lySistemaModerado: state.showSistemaModerado,
+    lySistemaAlto: state.showSistemaAlto,
+    lySistemaCritico: state.showSistemaCritico
   };
+  const checkedCount = Object.values(flagMap).filter(Boolean).length;
   if (master) {
-    master.checked = hasRoadSelection;
-    master.indeterminate = false;
+    master.checked = checkedCount === Object.keys(flagMap).length && checkedCount > 0;
+    master.indeterminate = checkedCount > 0 && checkedCount < Object.keys(flagMap).length;
   }
   Object.entries(flagMap).forEach(([id, checked]) => {
     const el = document.getElementById(id);
     if (el) el.checked = checked;
   });
+  state.showSistemaGroup = checkedCount > 0;
 }
+function setStatusBadge(el, text, cssClass) {
+  if (!el) return;
+  el.textContent = text;
+  el.className = `layer-status ${cssClass}`;
+}
+
+function updateLayerLoadStatus() {
+  const requiresOverlay = !geoOverlaysLoaded && (state.showObitosGroup || state.showSinistrosGroup || state.showHeatGroup);
+  setStatusBadge(document.getElementById('layerGlobalStatus'), requiresOverlay ? 'Carregando' : 'Pronto', requiresOverlay ? 'is-loading' : 'is-active');
+
+  const infosigaActive = state.showObitosGroup || state.showSinistrosGroup;
+  const infosigaLoading = infosigaActive && !geoOverlaysLoaded;
+  if (infosigaLoading) setStatusBadge(document.getElementById('statusInfosiga'), 'Carregando', 'is-loading');
+  else if (infosigaActive) setStatusBadge(document.getElementById('statusInfosiga'), 'Ativa', 'is-active');
+  else setStatusBadge(document.getElementById('statusInfosiga'), 'Oculta', 'is-off');
+
+  setStatusBadge(document.getElementById('statusHeat'), state.showHeatGroup ? (!geoOverlaysLoaded ? 'Carregando' : 'Ativa') : 'Oculta', state.showHeatGroup ? (!geoOverlaysLoaded ? 'is-loading' : 'is-active') : 'is-off');
+  setStatusBadge(document.getElementById('statusSistema'), state.showSistemaGroup ? 'Ativa' : 'Oculta', state.showSistemaGroup ? 'is-active' : 'is-off');
+  setStatusBadge(document.getElementById('statusBasemap'), ({ light: 'Clara', dark: 'Escura', osm: 'OSM' }[state.baseMap] || 'Clara'), 'is-active');
+}
+
+function switchBasemap(name) {
+  state.baseMap = name;
+  Object.entries(basemapOptions).forEach(([key, layer]) => {
+    if (key === name) {
+      if (!mapa.hasLayer(layer)) layer.addTo(mapa);
+    } else if (mapa.hasLayer(layer)) {
+      mapa.removeLayer(layer);
+    }
+  });
+  updateLayerLoadStatus();
+}
+
 function bindLayerPanel() {
+  const pointMaster = document.getElementById('grpInfosiga');
+  const pointChildren = [
+    { el: document.getElementById('lySinistrosMicros'), key: 'showSinistrosMicros', owner: 'sinistros' },
+    { el: document.getElementById('lySinistrosPoints'), key: 'showSinistrosPoints', owner: 'sinistros' },
+    { el: document.getElementById('lyObitosMicros'), key: 'showObitosMicros', owner: 'obitos' },
+    { el: document.getElementById('lyObitosPoints'), key: 'showObitosPoints', owner: 'obitos' }
+  ].filter(item => item.el);
+
+  const syncPointMaster = () => {
+    const checkedCount = pointChildren.filter(item => item.el.checked).length;
+    pointMaster.checked = checkedCount === pointChildren.length && checkedCount > 0;
+    pointMaster.indeterminate = checkedCount > 0 && checkedCount < pointChildren.length;
+    state.showSinistrosGroup = pointChildren.some(item => item.owner === 'sinistros' && item.el.checked);
+    state.showObitosGroup = pointChildren.some(item => item.owner === 'obitos' && item.el.checked);
+    pointChildren.forEach(item => { state[item.key] = item.el.checked; });
+    updateLayerLoadStatus();
+  };
+
+  pointChildren.forEach(item => { item.el.checked = !!state[item.key]; });
+  pointMaster.addEventListener('change', () => {
+    pointChildren.forEach(item => { item.el.checked = pointMaster.checked; state[item.key] = pointMaster.checked; });
+    pointMaster.indeterminate = false;
+    state.showSinistrosGroup = pointMaster.checked;
+    state.showObitosGroup = pointMaster.checked;
+    updateLayerLoadStatus();
+    renderAll();
+  });
+  pointChildren.forEach(item => item.el.addEventListener('change', () => { syncPointMaster(); renderAll(); }));
+  syncPointMaster();
+
   const groups = [
-    { master: 'grpObitos', groupKey: 'showObitosGroup', children: [['lyObitosPoints', 'showObitosPoints'], ['lyObitosMicros', 'showObitosMicros'], ['lyObitosYear', 'obitosUseYear']] },
-    { master: 'grpSinistros', groupKey: 'showSinistrosGroup', children: [['lySinistrosPoints', 'showSinistrosPoints'], ['lySinistrosMicros', 'showSinistrosMicros'], ['lySinistrosYear', 'sinistrosUseYear']] },
-    { master: 'grpHeat', groupKey: 'showHeatGroup', children: [['lyHeatObitos', 'showHeatObitos'], ['lyHeatSinistros', 'showHeatSinistros'], ['lyHeatYear', 'heatUseYear']] },
-    { master: 'grpMalha', groupKey: 'showMalhaGroup', children: [['lyMalhaSP', 'showMalhaSP'], ['lyMalhaSPA', 'showMalhaSPA'], ['lyMalhaSPI', 'showMalhaSPI'], ['lyMalhaSPM', 'showMalhaSPM'], ['lyMalhaOUTRAS', 'showMalhaOUTRAS']] }
+    { master: 'grpHeat', groupKey: 'showHeatGroup', children: [['lyHeatObitos', 'showHeatObitos'], ['lyHeatSinistros', 'showHeatSinistros']] },
+    { master: 'grpSistema', groupKey: 'showSistemaGroup', children: [['lySistemaSemRegistro', 'showSistemaSemRegistro'], ['lySistemaBaixo', 'showSistemaBaixo'], ['lySistemaModerado', 'showSistemaModerado'], ['lySistemaAlto', 'showSistemaAlto'], ['lySistemaCritico', 'showSistemaCritico']] }
   ];
   groups.forEach(cfg => {
     const master = document.getElementById(cfg.master);
@@ -848,6 +1073,7 @@ function bindLayerPanel() {
       master.checked = checkedCount === children.length && checkedCount > 0;
       master.indeterminate = checkedCount > 0 && checkedCount < children.length;
       state[cfg.groupKey] = checkedCount > 0;
+      updateLayerLoadStatus();
     };
     master.addEventListener('change', () => {
       children.forEach(item => {
@@ -856,6 +1082,7 @@ function bindLayerPanel() {
       });
       master.indeterminate = false;
       state[cfg.groupKey] = master.checked;
+      updateLayerLoadStatus();
       renderAll();
     });
     children.forEach(item => item.el.addEventListener('change', () => {
@@ -865,15 +1092,21 @@ function bindLayerPanel() {
     }));
     syncMaster();
   });
+
+  document.querySelectorAll('input[name="basemapChoice"]').forEach(input => {
+    input.checked = input.value === state.baseMap;
+    input.addEventListener('change', () => { if (input.checked) switchBasemap(input.value); });
+  });
+  updateLayerLoadStatus();
 }
 bindLayerPanel();
 function activeLegendId() {
   const visible = [];
-  if (state.showMalhaGroup && state.showMalhaSP) visible.push('malhaSP');
-  if (state.showMalhaGroup && state.showMalhaSPA) visible.push('malhaSPA');
-  if (state.showMalhaGroup && state.showMalhaSPI) visible.push('malhaSPI');
-  if (state.showMalhaGroup && state.showMalhaSPM) visible.push('malhaSPM');
-  if (state.showMalhaGroup && state.showMalhaOUTRAS) visible.push('malhaOUTRAS');
+  if (state.showSistemaGroup && state.showSistemaSemRegistro) visible.push('sistemaSemRegistro');
+  if (state.showSistemaGroup && state.showSistemaBaixo) visible.push('sistemaBaixo');
+  if (state.showSistemaGroup && state.showSistemaModerado) visible.push('sistemaModerado');
+  if (state.showSistemaGroup && state.showSistemaAlto) visible.push('sistemaAlto');
+  if (state.showSistemaGroup && state.showSistemaCritico) visible.push('sistemaCritico');
   if (state.showHeatGroup && state.showHeatSinistros) visible.push('heatSinistros');
   if (state.showHeatGroup && state.showHeatObitos) visible.push('heatObitos');
   if (state.showSinistrosGroup && state.showSinistrosPoints) visible.push('sinistrosPoints');
@@ -885,56 +1118,86 @@ function activeLegendId() {
 function updateLegend() {
   const id = activeLegendId();
   legend._div.innerHTML = legendHtmlMap[id] || '<b>Legenda dinâmica</b><br>Ative uma camada na barra lateral.';
+  updateLayerLoadStatus();
 }
 
 function drawMap(rows, segs) {
-  const maxMetric = Math.max(...segs.map(r => Number(r[state.metric] || 0)), 1);
-  const segLookup = Object.fromEntries(segs.map(r => [r.trecho_id || r.Subtrecho, r]));
+  const mapRows = filteredSegRowsForMap();
+  const maxMetric = Math.max(...mapRows.map(r => Number(r[state.metric] || 0)), 1);
+  const segLookup = Object.fromEntries(mapRows.map(r => [r.trecho_id || r.Subtrecho, r]));
   const selectedYear = state.year === 'ALL' ? null : Number(state.year);
   const emptyRow = { sinistros: 0, obitos: 0, graves: 0, sinistros_por_km: 0, obitos_por_km: 0, indice_letalidade: 0 };
   const allowedRoads = state.road === 'ALL' ? new Set(topRoadNamesForCurrentScope(6)) : null;
   const featureCollection = {
     type: 'FeatureCollection',
-    features: malha.features.filter(f => allowedRoads ? allowedRoads.has(f.properties.Rodovia) : f.properties.Rodovia === state.road)
+    features: malha.features || []
   };
   Object.values(overlayGroups).forEach(g => g.clearLayers());
 
   const visibleBounds = L.featureGroup();
-  const addMalhaCategoria = (cat, group, enabled) => {
-    setLayerVisible(group, state.showMalhaGroup && enabled);
-    if (!(state.showMalhaGroup && enabled)) return;
+  const focusedRoadLayers = [];
+  let focusedSegmentLayer = null;
+  const addSistemaClasse = (classKey, group, enabled) => {
+    setLayerVisible(group, state.showSistemaGroup && enabled);
+    if (!(state.showSistemaGroup && enabled)) return;
     const lyr = L.geoJSON({
       type: 'FeatureCollection',
-      features: featureCollection.features.filter(f => roadCategoryMatch(f, cat))
+      features: featureCollection.features.filter(f => {
+        const key = f.properties.trecho_id || f.properties.Subtrecho;
+        const row = segLookup[key] || ((state.year === 'ALL' && state.eventType === 'ALL') ? f.properties : emptyRow);
+        return roadSystemClass(row, maxMetric).key === classKey;
+      })
     }, {
       pane: 'paneMalha',
       style: f => {
         const key = f.properties.trecho_id || f.properties.Subtrecho;
         const row = segLookup[key] || ((state.year === 'ALL' && state.eventType === 'ALL') ? f.properties : emptyRow);
         const value = Number(row[state.metric] || 0);
-        const sev = severityClass(value, maxMetric);
-        return { color: sev.color, weight: Math.max(2, Math.min(9, 2 + (value / maxMetric) * 7)), opacity: 0.95 };
+        const sev = roadSystemClass(row, maxMetric);
+        const focusedRoad = state.road && state.road !== 'ALL' && f.properties.Rodovia === state.road;
+        const weight = sev.key === 'SemRegistro' ? 1.4 : Math.max(2, Math.min(8, 2 + (value / maxMetric) * 5));
+        return {
+          color: sev.color,
+          weight: focusedRoad ? weight + 1.5 : weight,
+          opacity: focusedRoad ? 1 : (sev.key === 'SemRegistro' ? 0.5 : 0.9)
+        };
       },
       onEachFeature: (f, l) => {
         const key = f.properties.trecho_id || f.properties.Subtrecho;
         const row = segLookup[key] || emptyRow;
         const value = Number(row[state.metric] || 0);
-        const sev = severityClass(value, maxMetric);
-        l.bindPopup(`<b>${f.properties.Rodovia}</b><br>Categoria DER: ${f.properties.categoria_der}<br>Subtrecho: ${f.properties.Subtrecho}<br>Classificação: <b>${sev.label}</b><br>Valor: ${state.metric.includes('km') || state.metric.includes('indice') ? fmt(value, 2) : fmt(value)}`);
-        l.on('click', () => { state.road = f.properties.Rodovia; state.segmentKey = key; fltRoad.value = state.road; renderAll(); });
+        const sev = roadSystemClass(row, maxMetric);
+        const kmI = f.properties.KmInicial ?? row.KmInicial;
+        const kmF = f.properties.KmFinal ?? row.KmFinal;
+        const kmTxt = (kmI != null && kmF != null) ? `km ${fmt(Number(kmI), 2)} – km ${fmt(Number(kmF), 2)}` : '—';
+        l.bindPopup(`<b>${f.properties.Rodovia}</b><br>Sistema: ${f.properties.categoria_der || 'Estadual'}<br>Subtrecho: ${f.properties.Subtrecho}<br><b>Trecho:</b> ${kmTxt}<br>Criticidade: <b>${sev.label}</b><br>Sinistros: ${fmt(row.sinistros || 0)}<br>Óbitos: ${fmt(row.obitos || row.vitimas_fatais || 0)}<br>Valor atual: ${state.metric.includes('km') || state.metric.includes('indice') ? fmt(value, 2) : fmt(value)}`);
+        if (state.road && state.road !== 'ALL' && f.properties.Rodovia === state.road) focusedRoadLayers.push(l);
+        if (state.segmentKey && key === state.segmentKey) focusedSegmentLayer = l;
+        l.on('click', () => { if (inspectMode) return; state.road = f.properties.Rodovia; state.segmentKey = key; fltRoad.value = state.road; renderAll(); });
       }
     }).addTo(group);
     visibleBounds.addLayer(lyr);
   };
-  addMalhaCategoria('SP', overlayGroups.malhaSP, state.showMalhaSP);
-  addMalhaCategoria('SPA', overlayGroups.malhaSPA, state.showMalhaSPA);
-  addMalhaCategoria('SPI', overlayGroups.malhaSPI, state.showMalhaSPI);
-  addMalhaCategoria('SPM', overlayGroups.malhaSPM, state.showMalhaSPM);
-  addMalhaCategoria('OUTRAS', overlayGroups.malhaOUTRAS, state.showMalhaOUTRAS);
+  addSistemaClasse('SemRegistro', overlayGroups.sistemaSemRegistro, state.showSistemaSemRegistro);
+  addSistemaClasse('Baixo', overlayGroups.sistemaBaixo, state.showSistemaBaixo);
+  addSistemaClasse('Moderado', overlayGroups.sistemaModerado, state.showSistemaModerado);
+  addSistemaClasse('Alto', overlayGroups.sistemaAlto, state.showSistemaAlto);
+  addSistemaClasse('Critico', overlayGroups.sistemaCritico, state.showSistemaCritico);
 
   roadLayer = visibleBounds;
-  if (visibleBounds.getBounds().isValid()) mapa.fitBounds(visibleBounds.getBounds(), { padding: [18, 18] });
+  let focusBounds = null;
+  let highlightTarget = null;
+  if (focusedSegmentLayer && focusedSegmentLayer.getBounds && focusedSegmentLayer.getBounds().isValid()) {
+    focusBounds = focusedSegmentLayer.getBounds();
+    highlightTarget = focusedSegmentLayer;
+  } else if (focusedRoadLayers.length) {
+    const fg = L.featureGroup(focusedRoadLayers);
+    if (fg.getBounds().isValid()) { focusBounds = fg.getBounds(); highlightTarget = fg; }
+  }
+  if (focusBounds) mapa.fitBounds(focusBounds, { padding: [40, 40], maxZoom: 13 });
+  else if (visibleBounds.getBounds().isValid()) mapa.fitBounds(visibleBounds.getBounds(), { padding: [18, 18] });
   else mapa.setView([-22.5, -48.5], 7);
+  if (highlightTarget) flashHighlight(highlightTarget);
   const bounds = visibleBounds.getBounds().isValid() ? visibleBounds.getBounds() : null;
 
   if (!geoOverlaysLoaded) {
@@ -1147,6 +1410,7 @@ function renderRoadRank(rows) {
   rankChart.removeAllListeners?.('plotly_click');
   rankChart.on('plotly_click', ev => {
     state.road = ev.points[0].y;
+    state.segmentKey = null;
     fltRoad.value = state.road;
     renderAll();
   });
@@ -1185,7 +1449,7 @@ function renderSegments(segs) {
     type: 'bar',
     orientation: 'h',
     x: ranked.map(r => r[state.metric]),
-    y: ranked.map(r => `km ${fmt(r.KmInicial, 2)} – km ${fmt(r.KmFinal, 2)}`),
+    y: ranked.map(r => `${r.Rodovia} · km ${fmt(r.KmInicial, 2)} – km ${fmt(r.KmFinal, 2)}`),
     text: ranked.map(r => state.metric.includes('km') || state.metric.includes('indice') ? fmt(r[state.metric], 2) : fmt(r[state.metric])),
     textposition: 'inside',
     insidetextanchor: 'middle',
@@ -1193,11 +1457,17 @@ function renderSegments(segs) {
     cliponaxis: false,
     customdata: ranked.map(r => r.trecho_id || r.Subtrecho),
     marker: { color: ranked.map(r => pickColor(Number(r[state.metric] || 0), maxMetric)) }
-  }], chartLayout('', metricAxisTitle(state.metric), 'Subtrecho / posição km'), { responsive: true, displaylogo: false });
+  }], chartLayout('', metricAxisTitle(state.metric), 'Rodovia / posição km'), { responsive: true, displaylogo: false });
   const segChart = document.getElementById('segmentChart');
   segChart.removeAllListeners?.('plotly_click');
   segChart.on('plotly_click', ev => {
-    state.segmentKey = ev.points?.[0]?.customdata || null;
+    const key = ev.points?.[0]?.customdata || null;
+    state.segmentKey = key;
+    const ft = (malha.features || []).find(f => (f.properties.trecho_id || f.properties.Subtrecho) === key);
+    if (ft && ft.properties.Rodovia) {
+      state.road = ft.properties.Rodovia;
+      if (typeof fltRoad !== 'undefined' && fltRoad) fltRoad.value = state.road;
+    }
     renderAll();
   });
 }
@@ -1255,7 +1525,7 @@ function renderAll() {
   renderCompare(rows, segs);
 }
 
-fltRoad.addEventListener('change', () => { state.road = fltRoad.value || 'ALL'; renderAll(); });
+fltRoad.addEventListener('change', () => { state.road = fltRoad.value || 'ALL'; state.segmentKey = null; renderAll(); });
 fltEventType.addEventListener('change', renderAll);
 fltMetric.addEventListener('change', renderAll);
 fltOrder.addEventListener('change', renderAll);
@@ -1297,7 +1567,7 @@ document.getElementById('btnReset').addEventListener('click', () => {
 <footer>
   <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
   <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
-  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 18/04/2026 01:49</div>
+  <div class="footer-note">© 2026 — Gerado em 18/04/2026 01:49</div>
 </footer>
 
 </body></html>

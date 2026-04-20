@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Dashboard 2 — Subtrechos</title>
+<title>Redirecionando para o painel integrado</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
@@ -105,7 +105,7 @@ footer a{color:#fff;text-decoration:none}
 .leaflet-control-layers{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.18)!important;border-radius:10px!important}
 .leaflet-control-layers-expanded{padding:10px 12px;background:white}
 .leaflet-popup-content{line-height:1.45}
-.small-note{color:var(--muted);font-size:.92em;margin-top:6px}
+.small-note{color:var(--muted);font-size:.92em;margin-top:6px}`r`n.hero-note{font-size:.9em;opacity:.85}`r`n.footer-note{margin-top:6px;color:#94a3b8;font-size:.85em}
 @media (max-width: 1100px){
   main,.geo-main{padding:16px}
   .kpis,.portal-kpis,.card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -130,6 +130,9 @@ footer a{color:#fff;text-decoration:none}
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 
+<script>
+window.location.replace('analise_geografica.html');
+</script>
 </head>
 <body>
 
@@ -1215,7 +1218,7 @@ document.getElementById('subReset').addEventListener('click', () => {
 <footer>
   <div>Infosiga SP · Detran SP · Análise Exploratória de Sinistros (2014 – 2026)</div>
   <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
-  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 — Gerado em 18/04/2026 01:49</div>
+  <div class="footer-note">© 2026 — Gerado em 18/04/2026 01:49</div>
 </footer>
 
 </body></html>
