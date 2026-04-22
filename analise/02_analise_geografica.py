@@ -231,7 +231,7 @@ stats_map = t[["trecho_id", "sinistros", "obitos", "graves", "sinistros_por_km",
 malha_top_wgs = malha_top_wgs.merge(stats_map, on="trecho_id", how="left")
 for c in ["sinistros", "obitos", "graves", "sinistros_por_km", "obitos_por_km", "indice_letalidade"]:
     malha_top_wgs[c] = malha_top_wgs[c].fillna(0)
-cols = ["Rodovia", "categoria_der", "Subtrecho", "trecho_id", "KmInicial", "KmFinal", "Extensao",
+cols = ["Rodovia", "categoria_der", "Municipio", "Subtrecho", "trecho_id", "KmInicial", "KmFinal", "Extensao",
         "sinistros", "obitos", "graves", "sinistros_por_km", "obitos_por_km", "indice_letalidade", "geometry"]
 malha_top_wgs[cols].to_file(OUT / "malha_topN.geojson", driver="GeoJSON")
 

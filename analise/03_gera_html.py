@@ -629,8 +629,7 @@ NAV = """
 <nav class="top">
   <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
   <a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a>
-  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dash Rodovias</a>
-  <a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dash Subtrechos</a>
+  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Análise Geográfica</a>
   <a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a>
   <a href="GUIA_ACESSO.html"><i class="fa-solid fa-book"></i> Guia</a>
 </nav>
@@ -707,14 +706,9 @@ cards_html = """
     <a href="dashboard_principal.html">Acessar Dashboard</a>
   </div>
   <div class="card">
-    <h3><i class="fa-solid fa-road"></i> Dashboard de Rodovias</h3>
-    <p>Visão tática por rodovia, tipo de evento e ano, aproveitando a malha completa do DER/SP no mapa interativo.</p>
-    <a href="analise_geografica.html">Abrir Dashboard 1</a>
-  </div>
-  <div class="card">
-    <h3><i class="fa-solid fa-route"></i> Dashboard de Subtrechos</h3>
-    <p>Visão detalhada por subtrecho, tipo de evento e ano, focada nas top 10 rodovias de cada tipologia de sinistro.</p>
-    <a href="analise_subtrechos.html">Abrir Dashboard 2</a>
+    <h3><i class="fa-solid fa-road"></i> Análise Geográfica</h3>
+    <p>Visão tática por rodovia e por subtrecho com a malha completa do DER/SP, mapa interativo, ranking, série temporal e composição por tipo de evento.</p>
+    <a href="analise_geografica.html">Abrir Análise Geográfica</a>
   </div>
   <div class="card">
     <h3><i class="fa-solid fa-file-lines"></i> Relatório Executivo</h3>
@@ -1070,6 +1064,16 @@ geo_asset_path = write_json_asset("geo/rodovias_dashboard_main.json", {
     "roadRowsByYear": rod.get("all_by_year", []),
     "roadRowsByYearType": rod.get("all_by_year_type", []),
     "malha": malha_obj,
+})
+# Asset consumido pelo painel estatico analise_geografica.html.
+# Replica as bases de subtrecho que o painel precisa para alimentar mapa,
+# ranking, serie temporal e composicao por tipo. Mantem chaves em ingles
+# por compatibilidade com o JS atual.
+write_json_asset("geo/rodovias_dashboard_segments.json", {
+    "segRowsAll": [],  # vazio: o painel agrega a partir das bases tipadas
+    "segRowsByYear": trc.get("all_by_year", []),
+    "segRowsByType": trc.get("all_by_type", []),
+    "segRowsByYearType": trc.get("all_by_year_type", []),
 })
 geo_analytics_asset_path = write_json_asset("geo/rodovias_dashboard_analytics.json", {
     "annualRows": ag_ano[["ano_sinistro", "sinistros", "vitimas_fatais"]].to_dict(orient="records"),
@@ -2234,10 +2238,12 @@ document.getElementById('btnReset').addEventListener('click', () => {{
 </script>
 """
 
-(DOCS / "analise_geografica.html").write_text(
-    html_page("Dashboard 1 — Rodovias", geo_body, extra_head=geo_head),
-    encoding="utf-8"
-)
+# Observacao: `analise_geografica.html` agora e mantido como HTML estatico em
+# docs/, com narrativa guiada e foco unificado mapa-ranking-tabela. O pipeline
+# preserva a pagina manual e nao a sobrescreve mais. Os assets dinamicos
+# consumidos por ela continuam sendo gerados acima:
+#   rodovias_dashboard_main.json, rodovias_dashboard_segments.json,
+#   rodovias_dashboard_analytics.json, rodovias_dashboard_overlays.json.
 
 # ============ DASHBOARD 2 — SUBTRECHOS ============
 focus_road_names = subtr.get("rodovias_foco", [])
@@ -3323,10 +3329,10 @@ document.getElementById('subReset').addEventListener('click', () => {{
 </script>
 """
 
-(DOCS / "analise_subtrechos.html").write_text(
-    html_page("Dashboard 2 — Subtrechos", sub_body, extra_head=geo_head),
-    encoding="utf-8"
-)
+# Observacao: `analise_subtrechos.html` foi descontinuado. O painel de subtrechos
+# agora vive dentro de `analise_geografica.html` atraves do seletor de escala
+# espacial (rodovia vs trecho). Esta etapa do pipeline nao gera mais um HTML
+# separado.
 
 # ============ GUIA DE ACESSO ============
 guia_body = f"""
@@ -3339,8 +3345,7 @@ guia_body = f"""
 <ul>
   <li><a href="index.html"><i class="fa-solid fa-house"></i> Portal</a> — visão geral, KPIs e acesso aos recursos</li>
   <li><a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a> — 25+ gráficos em 5 categorias</li>
-  <li><a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Dashboard 1 — Rodovias</a> — visão por rodovia, tipo de evento e ano</li>
-  <li><a href="analise_subtrechos.html"><i class="fa-solid fa-route"></i> Dashboard 2 — Subtrechos</a> — visão detalhada por subtrecho, tipo de evento e ano</li>
+  <li><a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Análise Geográfica</a> — visão por rodovia e por subtrecho com mapa, ranking, série temporal e composição por tipo</li>
   <li><a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a> — síntese analítica com recomendações</li>
 </ul></section>
 

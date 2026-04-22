@@ -3,10 +3,13 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Infosiga SP — Portal</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<link rel="stylesheet" href="assets/css/shared.css">
+<script src="assets/js/pwa.js" defer></script>
 <style>
 :root{--azul:#0e4d92;--vermelho:#d52b1e;--amarelo:#f7b500;--verde:#2e8b57;--bg:#f3f4f6;--ink:#1f2937;--muted:#6b7280;}
 *{box-sizing:border-box}
@@ -132,8 +135,7 @@ footer a{color:#fff;text-decoration:none}
 <nav class="top">
   <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
   <a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a>
-  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Painel Rodovias + Subtrechos</a>
-  <a href="analise_geografica.html"><i class="fa-solid fa-route"></i> Detalhe integrado</a>
+  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Análise Geográfica</a>
   <a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório Executivo</a>
   <a href="GUIA_ACESSO.html"><i class="fa-solid fa-book"></i> Guia</a>
 </nav>
@@ -202,14 +204,9 @@ footer a{color:#fff;text-decoration:none}
     <a href="dashboard_principal.html">Acessar Dashboard</a>
   </div>
   <div class="card">
-    <h3><i class="fa-solid fa-road"></i> Dashboard Integrado</h3>
-    <p>Visão tática por rodovia e visão detalhada por subtrechos críticos, em um único painel com a malha completa do DER/SP.</p>
-    <a href="analise_geografica.html">Abrir Painel Integrado</a>
-  </div>
-  <div class="card">
-    <h3><i class="fa-solid fa-route"></i> Detalhe por Subtrechos</h3>
-    <p>O recorte micro foi incorporado ao painel de rodovias para evitar duplicidade de leitura e manter tudo em uma só navegação.</p>
-    <a href="analise_geografica.html">Abrir no Painel Integrado</a>
+    <h3><i class="fa-solid fa-road"></i> Análise Geográfica</h3>
+    <p>Visão tática por rodovia e por subtrecho com a malha completa do DER/SP, mapa interativo, ranking, série temporal e composição por tipo de evento.</p>
+    <a href="analise_geografica.html">Abrir Análise Geográfica</a>
   </div>
   <div class="card">
     <h3><i class="fa-solid fa-file-lines"></i> Relatório Executivo</h3>
