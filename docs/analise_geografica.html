@@ -8,6 +8,10 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="assets/shpwrite.bundle.js"></script>
+<script src="assets/sql-wasm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@ngageoint/geopackage@4.2.6/dist/geopackage.min.js"></script>
 <style>
 :root {
   --azul: #0e4d92;
@@ -370,6 +374,76 @@ main {
   margin: 0 0 10px;
   line-height: 1.55;
 }
+.export-group {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+.btn-export-toggle {
+  width: 100%;
+  background: var(--vermelho);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn-export-toggle:hover { background: #b91c1c; }
+.export-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 9999;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.14);
+  padding: 8px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.export-menu button {
+  background: #f8fbff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink);
+}
+.export-menu button:hover { background: #dbeafe; color: var(--azul); }
+.export-section-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--muted);
+  padding: 4px 4px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.export-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--azul-escuro);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.22);
+  z-index: 99999;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+}
+.export-toast.show { opacity: 1; transform: translateY(0); }
 .comp-controls {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -397,7 +471,77 @@ main {
 }
 @media (max-width: 1100px) {
   .comp-grid { grid-template-columns: 1fr; }
-  .comp-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .export-group {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+.btn-export-toggle {
+  width: 100%;
+  background: var(--vermelho);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.btn-export-toggle:hover { background: #b91c1c; }
+.export-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 0;
+  z-index: 9999;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.14);
+  padding: 8px;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.export-menu button {
+  background: #f8fbff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink);
+}
+.export-menu button:hover { background: #dbeafe; color: var(--azul); }
+.export-section-label {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: var(--muted);
+  padding: 4px 4px 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.export-toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--azul-escuro);
+  color: #fff;
+  padding: 12px 20px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 0.95rem;
+  box-shadow: 0 8px 24px rgba(15,23,42,0.22);
+  z-index: 99999;
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.25s, transform 0.25s;
+  pointer-events: none;
+}
+.export-toast.show { opacity: 1; transform: translateY(0); }
+.comp-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 footer {
   background: var(--azul-escuro);
@@ -498,6 +642,20 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
       <label>&nbsp;
         <button id="btnReset" type="button">Limpar filtros</button>
       </label>
+      <label>&nbsp;
+        <div class="export-group" id="exportMain">
+          <button class="btn-export-toggle" type="button" onclick="toggleExportMenu('exportMain')"><i class="fa-solid fa-download"></i> Exportar</button>
+          <div class="export-menu" id="exportMainMenu" style="display:none">
+            <div class="export-section-label">Tabular</div>
+            <button onclick="exportData('main','csv')">CSV</button>
+            <button onclick="exportData('main','xlsx')">XLSX</button>
+            <button onclick="exportData('main','txt')">TXT</button>
+            <div class="export-section-label">Geoespacial</div>
+            <button onclick="exportData('main','shp')">SHP (zip)</button>
+            <button onclick="exportData('main','gpkg')">GeoPackage</button>
+          </div>
+        </div>
+      </label>
     </div>
   </section>
 
@@ -530,7 +688,8 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
     <div id="detailTable" class="detail-table"></div>
   </section>
 
-  <section class="panel" id="secaoComparativa">
+  <div id="exportToast" class="export-toast"></div>
+<section class="panel" id="secaoComparativa">
     <h2><i class="fa-solid fa-scale-balanced"></i> Análise comparativa por administração</h2>
     <p class="sub">Fixe o indicador, o tipo de evento e o período — depois selecione quais entidades administradoras comparar. O mapa entra em modo comparativo colorindo cada administração com uma cor distinta.</p>
 
@@ -562,6 +721,20 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
       </label>
       <label>&nbsp;
         <button id="btnCompReset" type="button">Limpar</button>
+      </label>
+      <label>&nbsp;
+        <div class="export-group" id="exportComp">
+          <button class="btn-export-toggle" type="button" onclick="toggleExportMenu('exportComp')"><i class="fa-solid fa-download"></i> Exportar</button>
+          <div class="export-menu" id="exportCompMenu" style="display:none">
+            <div class="export-section-label">Tabular</div>
+            <button onclick="exportData('comp','csv')">CSV</button>
+            <button onclick="exportData('comp','xlsx')">XLSX</button>
+            <button onclick="exportData('comp','txt')">TXT</button>
+            <div class="export-section-label">Geoespacial</div>
+            <button onclick="exportData('comp','shp')">SHP (zip)</button>
+            <button onclick="exportData('comp','gpkg')">GeoPackage</button>
+          </div>
+        </div>
       </label>
     </div>
     <p class="detail-note" id="compMapNote" style="margin-top:8px;display:none"><i class="fa-solid fa-circle-info"></i> Mapa em modo comparativo — cada cor representa uma administração. Clique em <strong>Limpar</strong> para voltar ao modo de criticidade.</p>
@@ -2160,6 +2333,207 @@ function wireCompEvents() {
     applyCompMapMode(false);
     renderComp();
   });
+}
+
+function toggleExportMenu(groupId) {
+  const menu = document.getElementById(groupId + 'Menu');
+  const all = document.querySelectorAll('.export-menu');
+  all.forEach((m) => { if (m !== menu) m.style.display = 'none'; });
+  menu.style.display = menu.style.display === 'none' ? 'flex' : 'none';
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.export-group') && !e.target.closest('.export-menu')) {
+    document.querySelectorAll('.export-menu').forEach((m) => { m.style.display = 'none'; });
+  }
+});
+
+function showToast(msg, duration) {
+  const t = document.getElementById('exportToast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), duration || 4000);
+}
+
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
+function getExportRows(source) {
+  if (source === 'main') {
+    const rows = currentRowsForSpatialLevel();
+    return rows.map((r) => ({
+      Rodovia: r.Rodovia,
+      Administracao: r.administracao || '',
+      Sinistros: r.sinistros,
+      Obitos: r.obitos,
+      Graves: r.graves,
+      Sinistros_por_km: r.sinistros_por_km != null ? Number(r.sinistros_por_km).toFixed(4) : '',
+      Obitos_por_km: r.obitos_por_km != null ? Number(r.obitos_por_km).toFixed(4) : '',
+      Indice_Letalidade: r.indice_letalidade != null ? Number(r.indice_letalidade).toFixed(2) : '',
+    }));
+  }
+  const trechos = compAdmTrechos.filter((r) => {
+    if (compState.adms.length && !compState.adms.includes(String(r.administracao || '').toUpperCase())) return false;
+    return true;
+  });
+  return trechos.map((r) => ({
+    Administracao: r.administracao || '',
+    Rodovia: r.Rodovia,
+    Trecho_ID: r.trecho_id,
+    Km_Inicial: r.KmInicial,
+    Km_Final: r.KmFinal,
+    Extensao_km: r.Extensao,
+    Sinistros: r.sinistros,
+    Obitos: r.obitos,
+    Graves: r.graves,
+    Sinistros_por_km: r.sinistros_por_km != null ? Number(r.sinistros_por_km).toFixed(4) : '',
+    Obitos_por_km: r.obitos_por_km != null ? Number(r.obitos_por_km).toFixed(4) : '',
+    Indice_Letalidade: r.indice_letalidade != null ? Number(r.indice_letalidade).toFixed(2) : '',
+  }));
+}
+
+function getExportGeoRows(source) {
+  if (source === 'main') {
+    const rows = currentRowsForSpatialLevel();
+    const allowed = new Set(rows.map((r) => r.Rodovia));
+    return malha.features.filter((f) => allowed.has(f.properties.Rodovia));
+  }
+  const admsAtivas = compState.adms.length
+    ? new Set(compState.adms)
+    : new Set(Object.keys(ADM_PALETTE));
+  return malha.features.filter((f) => admsAtivas.has(String(f.properties.Administra || '').toUpperCase()));
+}
+
+function exportCSV(rows, filename) {
+  if (!rows.length) { showToast('Nenhum dado no recorte atual.'); return; }
+  const cols = Object.keys(rows[0]);
+  const lines = [cols.join(','), ...rows.map((r) => cols.map((c) => {
+    const v = String(r[c] ?? '');
+    return v.includes(',') || v.includes('"') ? `"${v.replace(/"/g, '""')}"` : v;
+  }).join(','))];
+  downloadBlob(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' }), filename);
+  showToast('CSV exportado.');
+}
+
+function exportTXT(rows, filename) {
+  if (!rows.length) { showToast('Nenhum dado no recorte atual.'); return; }
+  const cols = Object.keys(rows[0]);
+  const widths = cols.map((c) => Math.max(c.length, ...rows.map((r) => String(r[c] ?? '').length)));
+  const pad = (v, w) => String(v ?? '').padEnd(w);
+  const sep = widths.map((w) => '-'.repeat(w)).join('  ');
+  const lines = [cols.map((c, i) => pad(c, widths[i])).join('  '), sep,
+    ...rows.map((r) => cols.map((c, i) => pad(r[c], widths[i])).join('  '))];
+  downloadBlob(new Blob(['\uFEFF' + lines.join('\r\n')], { type: 'text/plain;charset=utf-8' }), filename);
+  showToast('TXT exportado.');
+}
+
+function exportXLSX(rows, filename) {
+  if (!rows.length) { showToast('Nenhum dado no recorte atual.'); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Dados');
+  XLSX.writeFile(wb, filename);
+  showToast('XLSX exportado.');
+}
+
+async function exportSHP(features, filename) {
+  if (!features.length) { showToast('Nenhum dado geoespacial no recorte atual.'); return; }
+  showToast('Gerando SHP...');
+  try {
+    const geojson = { type: 'FeatureCollection', features };
+    const zip = await shpwrite.zip(geojson, {
+      outputType: 'blob',
+      compression: 'DEFLATE',
+      types: { polygon: filename, polyline: filename, point: filename }
+    });
+    downloadBlob(zip instanceof Blob ? zip : new Blob([zip]), filename + '.zip');
+    showToast('SHP exportado.');
+  } catch (e) {
+    console.error(e);
+    showToast('Erro ao gerar SHP: ' + e.message);
+  }
+}
+
+async function exportGPKG(features, filename) {
+  if (!features.length) { showToast('Nenhum dado geoespacial no recorte atual.'); return; }
+  if (typeof window.initSqlJs !== 'function') { showToast('Erro: sql.js nao carregado. Verifique a conexao.'); return; }
+  showToast('Gerando GeoPackage... aguarde', 30000);
+  try {
+    const SQL = await window.initSqlJs({ locateFile: () => 'assets/sql-wasm.wasm' });
+    const db = new SQL.Database();
+    db.run('PRAGMA application_id = 0x47503130;');
+    db.run('PRAGMA user_version = 10200;');
+    db.run(`CREATE TABLE gpkg_spatial_ref_sys (
+      srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
+      organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
+      definition TEXT NOT NULL, description TEXT)`);
+    db.run(`INSERT INTO gpkg_spatial_ref_sys VALUES
+      ('WGS 84 Geographic 2D',4326,'EPSG',4326,'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',NULL)`);
+    db.run(`CREATE TABLE gpkg_contents (
+      table_name TEXT NOT NULL PRIMARY KEY, data_type TEXT NOT NULL,
+      identifier TEXT, description TEXT DEFAULT '', last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      min_x REAL, min_y REAL, max_x REAL, max_y REAL, srs_id INTEGER)`);
+    db.run(`CREATE TABLE gpkg_geometry_columns (
+      table_name TEXT NOT NULL, column_name TEXT NOT NULL,
+      geometry_type_name TEXT NOT NULL, srs_id INTEGER NOT NULL,
+      z TINYINT NOT NULL DEFAULT 0, m TINYINT NOT NULL DEFAULT 0)`);
+
+    const sample = features[0].properties || {};
+    const propCols = Object.keys(sample).map((k) => `"${k}" TEXT`).join(', ');
+    db.run(`CREATE TABLE "${filename}" (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom BLOB, ${propCols})`);
+    db.run(`INSERT INTO gpkg_geometry_columns VALUES ('${filename}','geom','MULTILINESTRING',4326,0,0)`);
+    db.run(`INSERT INTO gpkg_contents VALUES ('${filename}','features','${filename}','',strftime('%Y-%m-%dT%H:%M:%fZ','now'),NULL,NULL,NULL,NULL,4326)`);
+
+    const propKeys = Object.keys(sample);
+    const placeholders = '?,' + propKeys.map(() => '?').join(',');
+    const stmt = db.prepare(`INSERT INTO "${filename}" (geom,${propKeys.map(k=>`"${k}"`).join(',')}) VALUES (${placeholders})`);
+
+    features.forEach((f) => {
+      const gj = JSON.stringify(f.geometry);
+      const gjBytes = new TextEncoder().encode(gj);
+      const header = new Uint8Array(8);
+      header[0] = 0x47; header[1] = 0x50; header[2] = 0x00; header[3] = 0x01;
+      const view = new DataView(header.buffer);
+      view.setInt32(4, 4326, false);
+      const geomBlob = new Uint8Array(header.length + gjBytes.length);
+      geomBlob.set(header); geomBlob.set(gjBytes, header.length);
+      const vals = [geomBlob, ...propKeys.map((k) => String(f.properties[k] ?? ''))];
+      stmt.run(vals);
+    });
+    stmt.free();
+
+    const data = db.export();
+    downloadBlob(new Blob([data], { type: 'application/x-sqlite3' }), filename + '.gpkg');
+    showToast('GeoPackage exportado.');
+  } catch (e) {
+    console.error(e);
+    showToast('Erro ao gerar GeoPackage: ' + e.message);
+  }
+}
+
+function exportData(source, format) {
+  document.querySelectorAll('.export-menu').forEach((m) => { m.style.display = 'none'; });
+  const ts = new Date().toISOString().slice(0, 10);
+  const prefix = source === 'main' ? 'infosiga_geo' : 'infosiga_comp_adm';
+  const filename = `${prefix}_${ts}`;
+
+  if (format === 'csv')  { exportCSV(getExportRows(source), filename + '.csv'); return; }
+  if (format === 'txt')  { exportTXT(getExportRows(source), filename + '.txt'); return; }
+  if (format === 'xlsx') { exportXLSX(getExportRows(source), filename + '.xlsx'); return; }
+
+  const features = getExportGeoRows(source);
+  if (format === 'shp')  { exportSHP(features, filename); return; }
+  if (format === 'gpkg') {
+    if (!malha || !malha.features || !malha.features.length) {
+      showToast('Aguardando carregamento da malha... tente novamente em instantes.');
+      return;
+    }
+    exportGPKG(features, filename);
+    return;
+  }
 }
 
 init();

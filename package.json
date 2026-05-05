@@ -1,0 +1,27 @@
+{
+  "name": "acidentes_infosiga_analise_exploratoria",
+  "version": "1.0.0",
+  "description": "Pipeline de análise exploratória dos dados de sinistros de trânsito do estado de São Paulo (InfoSiga-SP), com geração de dashboards HTML interativos.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vpcapanema/acidentes_infosiga_analise_exploratoria.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/vpcapanema/acidentes_infosiga_analise_exploratoria/issues"
+  },
+  "homepage": "https://github.com/vpcapanema/acidentes_infosiga_analise_exploratoria#readme",
+  "dependencies": {
+    "@mapbox/shp-write": "^0.4.3",
+    "browserify": "^17.0.1"
+  }
+}
