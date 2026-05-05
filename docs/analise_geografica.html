@@ -370,6 +370,35 @@ main {
   margin: 0 0 10px;
   line-height: 1.55;
 }
+.comp-controls {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.comp-controls select[multiple] {
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  padding: 6px;
+  font: inherit;
+  background: #fff;
+  resize: none;
+}
+.comp-controls select[multiple] option {
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+.comp-controls select[multiple] option:checked {
+  background: var(--azul);
+  color: #fff;
+}
+.comp-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+@media (max-width: 1100px) {
+  .comp-grid { grid-template-columns: 1fr; }
+  .comp-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 footer {
   background: var(--azul-escuro);
   color: #dbeafe;
@@ -501,6 +530,58 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
     <div id="detailTable" class="detail-table"></div>
   </section>
 
+  <section class="panel" id="secaoComparativa">
+    <h2><i class="fa-solid fa-scale-balanced"></i> Análise comparativa por administração</h2>
+    <p class="sub">Fixe o indicador, o tipo de evento e o período — depois selecione quais entidades administradoras comparar. O mapa entra em modo comparativo colorindo cada administração com uma cor distinta.</p>
+
+    <div class="controls controls-block comp-controls">
+      <label>Indicador
+        <select id="compMetric">
+          <option value="sinistros">Sinistros</option>
+          <option value="obitos">Óbitos</option>
+          <option value="sinistros_por_km">Sinistros por km</option>
+          <option value="indice_letalidade">Letalidade (%)</option>
+        </select>
+      </label>
+      <label>Tipo de evento
+        <select id="compEventType">
+          <option value="ALL">Todos</option>
+          <option value="COLISAO">Colisão</option>
+          <option value="CHOQUE">Choque</option>
+          <option value="ATROPELAMENTO">Atropelamento</option>
+          <option value="OUTROS">Outros</option>
+        </select>
+      </label>
+      <label>Período
+        <select id="compYear">
+          <option value="ALL">Todos os períodos</option>
+        </select>
+      </label>
+      <label>Administrações (múltipla seleção)
+        <select id="compAdms" multiple size="4"></select>
+      </label>
+      <label>&nbsp;
+        <button id="btnCompReset" type="button">Limpar</button>
+      </label>
+    </div>
+    <p class="detail-note" id="compMapNote" style="margin-top:8px;display:none"><i class="fa-solid fa-circle-info"></i> Mapa em modo comparativo — cada cor representa uma administração. Clique em <strong>Limpar</strong> para voltar ao modo de criticidade.</p>
+
+    <div class="comp-grid">
+      <div class="chart-card">
+        <h3 id="compBarTitle">Comparativo por administração</h3>
+        <div id="compBarChart" class="chart-host" style="height:300px"></div>
+      </div>
+      <div class="chart-card">
+        <h3>Evolução temporal por administração</h3>
+        <div id="compTimeChart" class="chart-host" style="height:300px"></div>
+      </div>
+    </div>
+
+    <div class="detail-table" style="margin-top:14px">
+      <div id="compTrechoTable"></div>
+    </div>
+  </section>
+
   <section class="panel method" id="metodologia">
     <h2>Notas metodológicas</h2>
     <p class="sub">Definições operacionais, fórmulas e limitações dos indicadores apresentados nesta página.</p>
@@ -549,6 +630,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
 <script>
 const DATA_URL = 'assets/geo/rodovias_dashboard_main.json';
 const SEGMENTS_URL = 'assets/geo/rodovias_dashboard_segments.json';
+const COMP_ADM_URL = 'assets/geo/comp_adm.json';
 
 const state = {
   metric: 'sinistros',
@@ -561,6 +643,24 @@ const state = {
   focusKey: null
 };
 
+const compState = {
+  metric: 'sinistros',
+  eventType: 'ALL',
+  year: 'ALL',
+  adms: [],
+  active: false
+};
+
+const ADM_PALETTE = {
+  'CONCESSIONÁRIA': '#f97316',
+  'DER':            '#0e4d92',
+  'DNIT':           '#15803d',
+  'PREFEITURA':     '#7c3aed'
+};
+function admColor(adm) {
+  return ADM_PALETTE[String(adm || '').toUpperCase()] || '#64748b';
+}
+
 let roadRowsAll = [];
 let roadRowsByYear = [];
 let roadRowsByYearType = [];
@@ -569,6 +669,11 @@ let segRowsByYear = [];
 let segRowsByType = [];
 let segRowsByYearType = [];
 let malha = { type: 'FeatureCollection', features: [] };
+let compAdmByTipo = [];
+let compAdmByAno = [];
+let compAdmByAnoTipo = [];
+let compAdmTrechos = [];
+let compAdmLoaded = false;
 let map;
 let roadLayer;
 let mapLegendControl;
@@ -1843,11 +1948,218 @@ async function init() {
 
     updateFilters();
     wireEvents();
+    wireCompEvents();
     render();
+
+    fetch(COMP_ADM_URL, { cache: 'no-cache' })
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((data) => {
+        compAdmByTipo    = data.byTipo    || [];
+        compAdmByAno     = data.byAno     || [];
+        compAdmByAnoTipo = data.byAnoTipo || [];
+        compAdmTrechos   = data.trechos   || [];
+        compAdmLoaded    = true;
+        initCompFilters();
+      })
+      .catch((e) => console.warn('comp_adm.json nao carregado:', e));
   } catch (error) {
     console.error(error);
     setStatus('Não foi possível carregar os dados da proposta. Verifique o servidor e os recursos estáticos.', true);
   }
+}
+
+function initCompFilters() {
+  const yearSel = document.getElementById('compYear');
+  const years = [...new Set(compAdmByAno.map((r) => String(r.ano_sinistro)).filter(Boolean))].sort((a, b) => Number(a) - Number(b));
+  yearSel.innerHTML = ['<option value="ALL">Todos os períodos</option>']
+    .concat(years.map((y) => `<option value="${y}">${y}</option>`))
+    .join('');
+
+  const admSel = document.getElementById('compAdms');
+  const adms = [...new Set(compAdmByTipo.map((r) => String(r.administracao || '')).filter(Boolean))].sort();
+  admSel.innerHTML = adms.map((a) => `<option value="${a}">${a}</option>`).join('');
+}
+
+function compScopeRows() {
+  let base = compAdmByAnoTipo;
+  if (compState.year !== 'ALL') base = base.filter((r) => String(r.ano_sinistro) === String(compState.year));
+  if (compState.eventType !== 'ALL') base = base.filter((r) => String(r.evento_tipo || '').toUpperCase() === compState.eventType);
+  if (compState.adms.length) base = base.filter((r) => compState.adms.includes(String(r.administracao || '').toUpperCase()));
+  const byAdm = {};
+  base.forEach((r) => {
+    const adm = String(r.administracao || '').toUpperCase();
+    if (!adm) return;
+    if (!byAdm[adm]) byAdm[adm] = { administracao: adm, sinistros: 0, obitos: 0, graves: 0, km_total: 0 };
+    byAdm[adm].sinistros += Number(r.sinistros || 0);
+    byAdm[adm].obitos    += Number(r.obitos    || 0);
+    byAdm[adm].graves    += Number(r.graves    || 0);
+    byAdm[adm].km_total  += Number(r.km_total  || 0);
+  });
+  return Object.values(byAdm).map((r) => ({
+    ...r,
+    sinistros_por_km:  r.km_total > 0 ? r.sinistros / r.km_total : 0,
+    obitos_por_km:     r.km_total > 0 ? r.obitos    / r.km_total : 0,
+    indice_letalidade: r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0
+  }));
+}
+
+function compTimeRows() {
+  let base = compAdmByAnoTipo;
+  if (compState.eventType !== 'ALL') base = base.filter((r) => String(r.evento_tipo || '').toUpperCase() === compState.eventType);
+  const admsAtivas = compState.adms.length
+    ? compState.adms
+    : [...new Set(base.map((r) => String(r.administracao || '').toUpperCase()).filter(Boolean))];
+  base = base.filter((r) => admsAtivas.includes(String(r.administracao || '').toUpperCase()));
+  const byAdmYear = {};
+  base.forEach((r) => {
+    const key = `${String(r.administracao || '').toUpperCase()}__${r.ano_sinistro}`;
+    if (!byAdmYear[key]) byAdmYear[key] = { administracao: String(r.administracao || '').toUpperCase(), ano_sinistro: r.ano_sinistro, sinistros: 0, obitos: 0, km_total: 0 };
+    byAdmYear[key].sinistros += Number(r.sinistros || 0);
+    byAdmYear[key].obitos    += Number(r.obitos    || 0);
+    byAdmYear[key].km_total  += Number(r.km_total  || 0);
+  });
+  return Object.values(byAdmYear).map((r) => ({
+    ...r,
+    sinistros_por_km:  r.km_total > 0 ? r.sinistros / r.km_total : 0,
+    indice_letalidade: r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0
+  })).sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro));
+}
+
+const metricLabel = { sinistros: 'Sinistros', obitos: 'Óbitos', sinistros_por_km: 'Sinistros/km', indice_letalidade: 'Letalidade (%)' };
+const metricDig   = { sinistros: 0, obitos: 0, sinistros_por_km: 2, indice_letalidade: 2 };
+
+function renderCompBar(rows) {
+  const m = compState.metric;
+  const sorted = [...rows].sort((a, b) => Number(b[m] || 0) - Number(a[m] || 0));
+  document.getElementById('compBarTitle').textContent = `${metricLabel[m]} por administração`;
+  Plotly.react('compBarChart', [{
+    type: 'bar',
+    x: sorted.map((r) => r.administracao),
+    y: sorted.map((r) => Number(r[m] || 0)),
+    text: sorted.map((r) => fmt(Number(r[m] || 0), metricDig[m])),
+    textposition: 'outside',
+    cliponaxis: false,
+    marker: { color: sorted.map((r) => admColor(r.administracao)) },
+    hovertemplate: '<b>%{x}</b><br>' + metricLabel[m] + ': %{y}<extra></extra>'
+  }], {
+    margin: { l: 40, r: 20, t: 24, b: 60 },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12 },
+    yaxis: { title: metricLabel[m] },
+    showlegend: false
+  }, { responsive: true, displaylogo: false });
+}
+
+function renderCompTime(rows) {
+  const m = compState.metric;
+  const admsPresentes = [...new Set(rows.map((r) => r.administracao))];
+  const traces = admsPresentes.map((adm) => {
+    const pts = rows.filter((r) => r.administracao === adm).sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro));
+    return {
+      type: 'scatter', mode: 'lines+markers',
+      name: adm,
+      x: pts.map((r) => r.ano_sinistro),
+      y: pts.map((r) => Number(r[m] || 0)),
+      line: { color: admColor(adm), width: 2.5 },
+      marker: { color: admColor(adm), size: 7 },
+      hovertemplate: `<b>${adm}</b><br>Ano: %{x}<br>${metricLabel[m]}: %{y}<extra></extra>`
+    };
+  });
+  Plotly.react('compTimeChart', traces, {
+    margin: { l: 40, r: 20, t: 24, b: 40 },
+    paper_bgcolor: 'transparent',
+    plot_bgcolor: 'transparent',
+    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12 },
+    yaxis: { title: metricLabel[m] },
+    legend: { orientation: 'h', y: -0.2 }
+  }, { responsive: true, displaylogo: false });
+}
+
+function renderCompTrechos() {
+  const m = compState.metric;
+  const admsAtivas = compState.adms.length
+    ? compState.adms
+    : [...new Set(compAdmTrechos.map((r) => String(r.administracao || '').toUpperCase()).filter(Boolean))];
+  let rows = compAdmTrechos.filter((r) => admsAtivas.includes(String(r.administracao || '').toUpperCase()));
+  if (compState.adms.length === 0) rows = rows.slice(0, 20);
+  rows = [...rows].sort((a, b) => Number(b[m] || 0) - Number(a[m] || 0)).slice(0, 30);
+  if (!rows.length) { document.getElementById('compTrechoTable').innerHTML = ''; return; }
+  const cols = ['administracao', 'Rodovia', 'trecho_id', 'sinistros', 'obitos', 'sinistros_por_km', 'indice_letalidade'];
+  const heads = ['Administração', 'Rodovia', 'Trecho', 'Sinistros', 'Óbitos', 'Sin./km', 'Letalidade (%)'];
+  const digs  = [null, null, null, 0, 0, 2, 2];
+  const html = `<table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>
+    ${rows.map((r) => `<tr style="border-left:4px solid ${admColor(r.administracao)}">${cols.map((c, i) => {
+      const v = r[c];
+      return `<td>${digs[i] !== null ? fmt(Number(v || 0), digs[i]) : (v || '-')}</td>`;
+    }).join('')}</tr>`).join('')}
+  </tbody></table><div class="detail-note">Top 30 trechos no recorte · ordenado por ${metricLabel[m]}</div>`;
+  document.getElementById('compTrechoTable').innerHTML = html;
+}
+
+function applyCompMapMode(active) {
+  compState.active = active;
+  document.getElementById('compMapNote').style.display = active ? '' : 'none';
+  if (!roadLayer || !malha.features) return;
+  if (!active) {
+    render();
+    return;
+  }
+  const admsAtivas = compState.adms.length
+    ? new Set(compState.adms)
+    : new Set(Object.keys(ADM_PALETTE));
+  roadLayer.eachLayer((layer) => {
+    const props = layer.feature?.properties || {};
+    const adm = String(props.Administra || '').toUpperCase();
+    const matched = admsAtivas.has(adm);
+    layer.setStyle({
+      color:   matched ? admColor(adm) : '#94a3b8',
+      weight:  matched ? 3 : 1,
+      opacity: matched ? 0.9 : 0.2
+    });
+  });
+}
+
+function renderComp() {
+  if (!compAdmLoaded) return;
+  const rows = compScopeRows();
+  const timeRows = compTimeRows();
+  renderCompBar(rows);
+  renderCompTime(timeRows);
+  renderCompTrechos();
+  applyCompMapMode(compState.adms.length > 0 || compState.eventType !== 'ALL' || compState.year !== 'ALL');
+}
+
+function wireCompEvents() {
+  document.getElementById('compMetric').addEventListener('change', (ev) => {
+    compState.metric = ev.target.value;
+    renderComp();
+  });
+  document.getElementById('compEventType').addEventListener('change', (ev) => {
+    compState.eventType = ev.target.value;
+    renderComp();
+  });
+  document.getElementById('compYear').addEventListener('change', (ev) => {
+    compState.year = ev.target.value;
+    renderComp();
+  });
+  document.getElementById('compAdms').addEventListener('change', () => {
+    const sel = document.getElementById('compAdms');
+    compState.adms = [...sel.selectedOptions].map((o) => o.value.toUpperCase());
+    renderComp();
+  });
+  document.getElementById('btnCompReset').addEventListener('click', () => {
+    compState.metric = 'sinistros';
+    compState.eventType = 'ALL';
+    compState.year = 'ALL';
+    compState.adms = [];
+    document.getElementById('compMetric').value = 'sinistros';
+    document.getElementById('compEventType').value = 'ALL';
+    document.getElementById('compYear').value = 'ALL';
+    [...document.getElementById('compAdms').options].forEach((o) => { o.selected = false; });
+    applyCompMapMode(false);
+    renderComp();
+  });
 }
 
 init();

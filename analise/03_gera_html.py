@@ -56,6 +56,7 @@ ag_pes = j("agg_pessoas.json")
 rod = j("rodovias_rank.json")
 trc = j("trechos_rank.json")
 subtr = j("subtrechos_analise.json")
+comp_adm = j("comp_adm.json")
 
 
 def first_existing_col(frame, names):
@@ -1091,6 +1092,7 @@ geo_overlay_asset_path = write_json_asset("geo/rodovias_dashboard_overlays.json"
     "heatSinistros": json.load(open(OUT / "heat_points_sinistros.json", encoding="utf-8")),
     "heatObitos": json.load(open(OUT / "heat_points_obitos.json", encoding="utf-8")),
 })
+comp_adm_asset_path = write_json_asset("geo/comp_adm.json", comp_adm)
 year_options_html = "\n".join(f'<option value="{int(a)}">{int(a)}</option>' for a in ag_ano["ano_sinistro"].tolist())
 
 geo_head = """

@@ -153,11 +153,13 @@ json.dump(rod_json, open(OUT / "rodovias_rank.json", "w", encoding="utf-8"), ens
 print(f"  {len(r)} rodovias rankeadas")
 
 # --------- RANKING POR TRECHO ---------
+adm_trecho = joined.groupby("trecho_id")["administracao"].agg(lambda x: x.mode()[0] if len(x) else "NÃO INFORMADO").reset_index()
+
 t = joined.groupby(["Rodovia", "trecho_id", "KmInicial", "KmFinal", "Extensao"]).agg(
     sinistros=("id_sinistro", "count"),
     obitos=("qtd_gravidade_fatal", "sum"),
     graves=("qtd_gravidade_grave", "sum"),
-).reset_index()
+).reset_index().merge(adm_trecho, on="trecho_id", how="left")
 t["sinistros_por_km"] = t["sinistros"] / t["Extensao"].replace(0, pd.NA)
 t["obitos_por_km"] = t["obitos"] / t["Extensao"].replace(0, pd.NA)
 t["indice_letalidade"] = t["obitos"] / t["sinistros"].replace(0, pd.NA) * 100
@@ -167,7 +169,7 @@ t_ano = joined.groupby(["ano_sinistro", "Rodovia", "trecho_id", "KmInicial", "Km
     sinistros=("id_sinistro", "count"),
     obitos=("qtd_gravidade_fatal", "sum"),
     graves=("qtd_gravidade_grave", "sum"),
-).reset_index()
+).reset_index().merge(adm_trecho, on="trecho_id", how="left")
 t_ano["sinistros_por_km"] = t_ano["sinistros"] / t_ano["Extensao"].replace(0, pd.NA)
 t_ano["obitos_por_km"] = t_ano["obitos"] / t_ano["Extensao"].replace(0, pd.NA)
 t_ano["indice_letalidade"] = t_ano["obitos"] / t_ano["sinistros"].replace(0, pd.NA) * 100
@@ -176,7 +178,7 @@ t_tipo = joined.groupby(["Rodovia", "trecho_id", "KmInicial", "KmFinal", "Extens
     sinistros=("id_sinistro", "count"),
     obitos=("qtd_gravidade_fatal", "sum"),
     graves=("qtd_gravidade_grave", "sum"),
-).reset_index()
+).reset_index().merge(adm_trecho, on="trecho_id", how="left")
 t_tipo["sinistros_por_km"] = t_tipo["sinistros"] / t_tipo["Extensao"].replace(0, pd.NA)
 t_tipo["obitos_por_km"] = t_tipo["obitos"] / t_tipo["Extensao"].replace(0, pd.NA)
 t_tipo["indice_letalidade"] = t_tipo["obitos"] / t_tipo["sinistros"].replace(0, pd.NA) * 100
@@ -185,7 +187,7 @@ t_ano_tipo = joined.groupby(["ano_sinistro", "Rodovia", "trecho_id", "KmInicial"
     sinistros=("id_sinistro", "count"),
     obitos=("qtd_gravidade_fatal", "sum"),
     graves=("qtd_gravidade_grave", "sum"),
-).reset_index()
+).reset_index().merge(adm_trecho, on="trecho_id", how="left")
 t_ano_tipo["sinistros_por_km"] = t_ano_tipo["sinistros"] / t_ano_tipo["Extensao"].replace(0, pd.NA)
 t_ano_tipo["obitos_por_km"] = t_ano_tipo["obitos"] / t_ano_tipo["Extensao"].replace(0, pd.NA)
 t_ano_tipo["indice_letalidade"] = t_ano_tipo["obitos"] / t_ano_tipo["sinistros"].replace(0, pd.NA) * 100
@@ -207,6 +209,50 @@ trecho_json[f"top10_trechos_rodovia_campea"] = {
     "trechos": df_to_records(t[t["Rodovia"] == top_rod].head(10)),
 }
 json.dump(trecho_json, open(OUT / "trechos_rank.json", "w", encoding="utf-8"), ensure_ascii=False)
+
+# --------- COMPARATIVO POR ADMINISTRAÇÃO ---------
+# Agrega por administracao × evento_tipo × ano para alimentar o painel comparativo
+comp_adm_tipo = joined.groupby(["administracao", "evento_tipo"]).agg(
+    sinistros=("id_sinistro", "count"),
+    obitos=("qtd_gravidade_fatal", "sum"),
+    graves=("qtd_gravidade_grave", "sum"),
+    km_total=("Extensao", "sum"),
+).reset_index()
+comp_adm_tipo["sinistros_por_km"] = comp_adm_tipo["sinistros"] / comp_adm_tipo["km_total"].replace(0, pd.NA)
+comp_adm_tipo["obitos_por_km"] = comp_adm_tipo["obitos"] / comp_adm_tipo["km_total"].replace(0, pd.NA)
+comp_adm_tipo["indice_letalidade"] = comp_adm_tipo["obitos"] / comp_adm_tipo["sinistros"].replace(0, pd.NA) * 100
+
+comp_adm_ano = joined.groupby(["administracao", "ano_sinistro"]).agg(
+    sinistros=("id_sinistro", "count"),
+    obitos=("qtd_gravidade_fatal", "sum"),
+    graves=("qtd_gravidade_grave", "sum"),
+    km_total=("Extensao", "sum"),
+).reset_index()
+comp_adm_ano["sinistros_por_km"] = comp_adm_ano["sinistros"] / comp_adm_ano["km_total"].replace(0, pd.NA)
+comp_adm_ano["obitos_por_km"] = comp_adm_ano["obitos"] / comp_adm_ano["km_total"].replace(0, pd.NA)
+comp_adm_ano["indice_letalidade"] = comp_adm_ano["obitos"] / comp_adm_ano["sinistros"].replace(0, pd.NA) * 100
+
+comp_adm_ano_tipo = joined.groupby(["administracao", "ano_sinistro", "evento_tipo"]).agg(
+    sinistros=("id_sinistro", "count"),
+    obitos=("qtd_gravidade_fatal", "sum"),
+    graves=("qtd_gravidade_grave", "sum"),
+    km_total=("Extensao", "sum"),
+).reset_index()
+comp_adm_ano_tipo["sinistros_por_km"] = comp_adm_ano_tipo["sinistros"] / comp_adm_ano_tipo["km_total"].replace(0, pd.NA)
+comp_adm_ano_tipo["obitos_por_km"] = comp_adm_ano_tipo["obitos"] / comp_adm_ano_tipo["km_total"].replace(0, pd.NA)
+comp_adm_ano_tipo["indice_letalidade"] = comp_adm_ano_tipo["obitos"] / comp_adm_ano_tipo["sinistros"].replace(0, pd.NA) * 100
+
+comp_adm_trecho = t[["administracao", "Rodovia", "trecho_id", "KmInicial", "KmFinal", "Extensao",
+                      "sinistros", "obitos", "graves", "sinistros_por_km", "obitos_por_km", "indice_letalidade"]].copy()
+
+comp_json = {
+    "byTipo": df_to_records(comp_adm_tipo),
+    "byAno": df_to_records(comp_adm_ano),
+    "byAnoTipo": df_to_records(comp_adm_ano_tipo),
+    "trechos": df_to_records(comp_adm_trecho),
+}
+json.dump(comp_json, open(OUT / "comp_adm.json", "w", encoding="utf-8"), ensure_ascii=False)
+print(f"  comp_adm.json: {len(comp_adm_tipo)} combinações adm×tipo")
 
 subtrecho_store = {
     "unidade_espacial_minima": "subtrecho",
