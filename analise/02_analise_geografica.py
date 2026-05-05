@@ -65,6 +65,7 @@ joined = gpd.sjoin_nearest(
     distance_col="dist_m",
 )
 joined = joined[joined["Rodovia"].notna()].copy()
+joined["administracao"] = joined["Administra"].astype(str).str.strip().str.upper().replace("NAN", "NÃO INFORMADO")
 print(f"  {len(joined):,} eventos associados a algum trecho (<=300m)")
 
 
@@ -83,13 +84,14 @@ joined["evento_tipo"] = joined["tp_sinistro_primario"].apply(normaliza_tipo_even
 
 # --------- RANKING POR RODOVIA ---------
 ext_rodovia = malha.groupby("Rodovia", as_index=False)["Extensao"].sum().rename(columns={"Extensao": "km_total"})
+adm_rodovia = joined.groupby("Rodovia")["administracao"].agg(lambda x: x.mode()[0] if len(x) else "NÃO INFORMADO").reset_index()
 r = joined.groupby("Rodovia").agg(
     sinistros=("id_sinistro", "count"),
     obitos=("qtd_gravidade_fatal", "sum"),
     graves=("qtd_gravidade_grave", "sum"),
     com_vitima=("tem_vitima", "sum"),
     fatais=("tem_fatal", "sum"),
-).reset_index().merge(ext_rodovia, on="Rodovia", how="left")
+).reset_index().merge(ext_rodovia, on="Rodovia", how="left").merge(adm_rodovia, on="Rodovia", how="left")
 r["sinistros_por_km"] = r["sinistros"] / r["km_total"].replace(0, pd.NA)
 r["obitos_por_km"] = r["obitos"] / r["km_total"].replace(0, pd.NA)
 r["indice_letalidade"] = (r["obitos"] / r["sinistros"].replace(0, pd.NA) * 100)
@@ -231,7 +233,7 @@ stats_map = t[["trecho_id", "sinistros", "obitos", "graves", "sinistros_por_km",
 malha_top_wgs = malha_top_wgs.merge(stats_map, on="trecho_id", how="left")
 for c in ["sinistros", "obitos", "graves", "sinistros_por_km", "obitos_por_km", "indice_letalidade"]:
     malha_top_wgs[c] = malha_top_wgs[c].fillna(0)
-cols = ["Rodovia", "categoria_der", "Municipio", "Subtrecho", "trecho_id", "KmInicial", "KmFinal", "Extensao",
+cols = ["Rodovia", "categoria_der", "Municipio", "Administra", "Subtrecho", "trecho_id", "KmInicial", "KmFinal", "Extensao",
         "sinistros", "obitos", "graves", "sinistros_por_km", "obitos_por_km", "indice_letalidade", "geometry"]
 malha_top_wgs[cols].to_file(OUT / "malha_topN.geojson", driver="GeoJSON")
 

@@ -3,13 +3,10 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Infosiga SP — Portal</title>
-<link rel="manifest" href="manifest.webmanifest">
-<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
-<link rel="stylesheet" href="assets/css/shared.css">
-<script src="assets/js/pwa.js" defer></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <style>
 :root{--azul:#0e4d92;--vermelho:#d52b1e;--amarelo:#f7b500;--verde:#2e8b57;--bg:#f3f4f6;--ink:#1f2937;--muted:#6b7280;}
 *{box-sizing:border-box}
@@ -108,7 +105,7 @@ footer a{color:#fff;text-decoration:none}
 .leaflet-control-layers{border:none!important;box-shadow:0 8px 24px rgba(15,23,42,.18)!important;border-radius:10px!important}
 .leaflet-control-layers-expanded{padding:10px 12px;background:white}
 .leaflet-popup-content{line-height:1.45}
-.small-note{color:var(--muted);font-size:.92em;margin-top:6px}`r`n.hero-note{font-size:.9em;opacity:.85}`r`n.footer-note{margin-top:6px;color:#94a3b8;font-size:.85em}
+.small-note{color:var(--muted);font-size:.92em;margin-top:6px}
 @media (max-width: 1100px){
   main,.geo-main{padding:16px}
   .kpis,.portal-kpis,.card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -144,7 +141,7 @@ footer a{color:#fff;text-decoration:none}
 <header class="hero">
   <h1>Análise de Acidentes Rodoviários — Infosiga SP</h1>
   <p>Análise Exploratória Completa — Estado de São Paulo · 2014 – 2026</p>
-  <p class="hero-note">Base oficial Detran SP · Malha Rodoviária DER/SP</p>
+  <p style="font-size:.9em;opacity:.85">Base oficial Detran SP · Malha Rodoviária DER/SP</p>
 </header>
 <main>
 
@@ -238,7 +235,7 @@ footer a{color:#fff;text-decoration:none}
   <div>Análise de dados e desenvolvimento: <strong>VPC-GEOSER — Geoprocessamento Inteligente</strong></div>
   <div>Responsável: <strong>Vinicius do Prado Capanema</strong></div>
   <div>Fontes: <a href="https://infosiga.detran.sp.gov.br">infosiga.detran.sp.gov.br</a> · Malha Rodoviária DER/SP</div>
-  <div class="footer-note">© 2026 VPC-GEOSER — Análise exploratória do Infosiga SP, período 2014–2026 · Atualizado em abril/2026</div>
+  <div style="margin-top:6px;color:#94a3b8;font-size:.85em">© 2026 VPC-GEOSER — Análise exploratória do Infosiga SP, período 2014–2026 · Atualizado em 05/05/2026 14:29</div>
 </footer>
 
 </body></html>

@@ -1141,6 +1141,12 @@ geo_body = f"""
         {year_options_html}
       </select>
     </label>
+    <label>Administração
+      <select id="fltAdm">
+        <option value="" disabled selected>Selecione um valor...</option>
+        <option value="ALL">Todas as administrações</option>
+      </select>
+    </label>
     <label>Rodovias
       <select id="fltRoad">
         <option value="" disabled selected>Selecione um valor...</option>
@@ -1306,7 +1312,7 @@ function warmGeoOverlays() {{
   else setTimeout(run, 700);
 }}
 const state = {{
-  road: '', eventType: '', metric: '', order: '', topN: 8, year: '', segmentKey: null,
+  road: '', eventType: '', metric: '', order: '', topN: 8, year: '', segmentKey: null, adm: '',
   showObitosGroup: false, showObitosPoints: false, showObitosMicros: false, obitosUseYear: false,
   showSinistrosGroup: false, showSinistrosPoints: false, showSinistrosMicros: false, sinistrosUseYear: false,
   showHeatGroup: false, showHeatObitos: false, showHeatSinistros: false, heatUseYear: false,
@@ -1339,6 +1345,7 @@ const fltMetric = document.getElementById('fltMetric');
 const fltOrder = document.getElementById('fltOrder');
 const fltYear = document.getElementById('fltYear');
 const fltTopN = document.getElementById('fltTopN');
+const fltAdm = document.getElementById('fltAdm');
 const topNLabel = document.getElementById('topNLabel');
 const kpiBox = document.getElementById('geo-kpis');
 const mapCaption = document.getElementById('map-caption');
@@ -1422,6 +1429,10 @@ function currentRoadBaseRows() {{
     base = roadRowsByYearType.filter(r => sameType(r) && (state.year === 'ALL' || String(r.ano_sinistro) === String(state.year)));
   }} else if (state.year !== 'ALL') {{
     base = roadRowsByYear.filter(r => String(r.ano_sinistro) === String(state.year));
+  }}
+  if (state.adm && state.adm !== 'ALL') {{
+    const admRoads = new Set(roadRowsAll.filter(r => sameAdm(r)).map(r => r.Rodovia));
+    base = base.filter(r => admRoads.has(r.Rodovia));
   }}
   return base;
 }}
@@ -1518,6 +1529,15 @@ function availableEventTypes() {{
   return ordered.filter(evt => roadRowsByYearType.some(r => sameType(r, evt) && metricValue(r, state.metric) > 0));
 }}
 
+function availableAdms() {{
+  return [...new Set(roadRowsAll.map(r => String(r.administracao || '')).filter(Boolean))].sort();
+}}
+
+function sameAdm(r) {{
+  if (state.adm === 'ALL' || !state.adm) return true;
+  return String(r.administracao || '').toUpperCase() === state.adm.toUpperCase();
+}}
+
 function availableYears() {{
   let base = state.eventType === 'ALL'
     ? roadRowsByYear
@@ -1569,6 +1589,9 @@ function fillRoadOptions() {{
     {{ value: 'sinistros_por_km', label: 'Sinistros por km' }},
     {{ value: 'indice_letalidade', label: 'Letalidade (%)' }}
   ], state.metric);
+
+  const admOptions = availableAdms().map(a => ({{ value: a, label: a }}));
+  state.adm = rebuildOptions(fltAdm, admOptions, state.adm, 'Todas as administrações');
 
   const eventOptions = availableEventTypes().map(evt => ({{ value: evt, label: eventTypeNames[evt] }}));
   state.eventType = rebuildOptions(fltEventType, eventOptions, state.eventType, 'Todos');
@@ -2174,6 +2197,7 @@ function renderAll() {{
   state.metric = fltMetric.value || state.metric || 'sinistros';
   state.eventType = fltEventType.value || state.eventType || 'ALL';
   state.year = fltYear.value || state.year || 'ALL';
+  state.adm = fltAdm.value || state.adm || 'ALL';
   state.road = fltRoad.value || state.road || 'ALL';
   state.order = fltOrder.value || 'desc';
   state.topN = Number(fltTopN.value);
@@ -2182,6 +2206,7 @@ function renderAll() {{
   fltMetric.value = state.metric;
   fltEventType.value = state.eventType;
   fltYear.value = state.year;
+  fltAdm.value = state.adm;
   fltRoad.value = state.road;
 
   syncRoadLayerPanelFromFilter();
@@ -2205,14 +2230,17 @@ fltEventType.addEventListener('change', renderAll);
 fltMetric.addEventListener('change', renderAll);
 fltOrder.addEventListener('change', renderAll);
 fltYear.addEventListener('change', renderAll);
+fltAdm.addEventListener('change', () => {{ state.adm = fltAdm.value || 'ALL'; state.road = 'ALL'; renderAll(); }});
 fltTopN.addEventListener('input', renderAll);
 document.getElementById('btnReset').addEventListener('click', () => {{
   state.road = 'ALL';
+  state.adm = 'ALL';
   fltRoad.value = '';
   fltEventType.value = '';
   fltMetric.value = '';
   fltOrder.value = '';
   fltYear.value = '';
+  fltAdm.value = '';
   fltTopN.value = '8';
   renderAll();
 }});
