@@ -927,18 +927,23 @@ function aggregateSegmentsAcrossYears(rows) {
         KmInicial: Number(r.KmInicial ?? r.km_inicial ?? NaN),
         KmFinal: Number(r.KmFinal ?? r.km_final ?? NaN),
         Extensao: Number(r.Extensao ?? 0),
+        administracao: String(r.administracao || ''),
         sinistros: 0,
-        obitos: 0
+        obitos: 0,
+        graves: 0
       };
     }
     bySeg[key].sinistros += Number(r.sinistros || 0);
-    bySeg[key].obitos += Number(r.obitos || r.vitimas_fatais || 0);
+    bySeg[key].obitos    += Number(r.obitos || r.vitimas_fatais || 0);
+    bySeg[key].graves    += Number(r.graves || 0);
     const ext = Number(r.Extensao ?? 0);
     if (ext > bySeg[key].Extensao) bySeg[key].Extensao = ext;
+    if (!bySeg[key].administracao && r.administracao) bySeg[key].administracao = String(r.administracao);
   });
   return Object.values(bySeg).map((r) => ({
     ...r,
-    sinistros_por_km: r.Extensao > 0 ? r.sinistros / r.Extensao : 0,
+    sinistros_por_km:  r.Extensao > 0 ? r.sinistros / r.Extensao : 0,
+    obitos_por_km:     r.Extensao > 0 ? r.obitos    / r.Extensao : 0,
     indice_letalidade: r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0
   }));
 }
@@ -1083,23 +1088,30 @@ function aggregateByRoad(rows) {
     if (!byRoad[road]) {
       byRoad[road] = {
         Rodovia: road,
+        administracao: String(r.administracao || ''),
         sinistros: 0,
         obitos: 0,
+        graves: 0,
         km_total: 0
       };
     }
     byRoad[road].sinistros += Number(r.sinistros || 0);
-    byRoad[road].obitos += Number(r.obitos || r.vitimas_fatais || 0);
+    byRoad[road].obitos    += Number(r.obitos || r.vitimas_fatais || 0);
+    byRoad[road].graves    += Number(r.graves || 0);
     const km = Number(r.km_total ?? r.Extensao ?? 0);
     if (km > byRoad[road].km_total) byRoad[road].km_total = km;
+    if (!byRoad[road].administracao && r.administracao) byRoad[road].administracao = String(r.administracao);
   });
 
   return Object.values(byRoad).map((r) => ({
     Rodovia: r.Rodovia,
+    administracao: r.administracao,
     sinistros: r.sinistros,
     obitos: r.obitos,
+    graves: r.graves,
     km_total: r.km_total,
-    sinistros_por_km: r.km_total > 0 ? r.sinistros / r.km_total : 0,
+    sinistros_por_km:  r.km_total > 0 ? r.sinistros / r.km_total : 0,
+    obitos_por_km:     r.km_total > 0 ? r.obitos    / r.km_total : 0,
     indice_letalidade: r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0
   }));
 }
