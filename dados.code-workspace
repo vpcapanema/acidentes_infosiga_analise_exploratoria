@@ -8,6 +8,13 @@
 		}
 	],
 	"settings": {
-		"powershell.cwd": "acidentes_infosiga_analise_exploratoria"
+		"powershell.cwd": "acidentes_infosiga_analise_exploratoria",
+		"cSpell.words": [
+			"conteudo",
+			"dinamicos",
+			"Infosiga",
+			"padrao",
+			"regeneracao"
+		]
 	}
 }

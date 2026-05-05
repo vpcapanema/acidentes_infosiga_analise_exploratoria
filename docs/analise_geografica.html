@@ -450,6 +450,11 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
           <option value="trecho">Trecho</option>
         </select>
       </label>
+      <label>Administração
+        <select id="fltAdm">
+          <option value="ALL">Todas as administrações</option>
+        </select>
+      </label>
       <label>Rodovia em foco
         <select id="fltRoad"></select>
       </label>
@@ -549,6 +554,7 @@ const state = {
   metric: 'sinistros',
   year: 'ALL',
   eventType: 'ALL',
+  adm: 'ALL',
   road: 'ALL',
   topN: 8,
   spatialLevel: 'rodovia',
@@ -836,6 +842,10 @@ function scopeRows(opts) {
       base = roadRowsByYear.filter((r) => String(r.ano_sinistro) === String(state.year));
     }
   }
+  if (state.adm !== 'ALL') {
+    const admRoads = new Set(roadRowsAll.filter((r) => String(r.administracao || '').toUpperCase() === state.adm.toUpperCase()).map((r) => r.Rodovia));
+    base = base.filter((r) => admRoads.has(r.Rodovia));
+  }
   const agg = aggregateByRoad(base);
   if (opts && opts.ignoreRoad) return agg;
   if (state.road === 'ALL') return agg;
@@ -975,6 +985,7 @@ function classify(value, max) {
 function updateFilters() {
   const yearSel = document.getElementById('fltYear');
   const eventSel = document.getElementById('fltEventType');
+  const admSel = document.getElementById('fltAdm');
   const roadSel = document.getElementById('fltRoad');
 
   const years = [...new Set(roadRowsByYear.map((r) => String(r.ano_sinistro)).filter(Boolean))]
@@ -994,6 +1005,13 @@ function updateFilters() {
   eventSel.innerHTML = available
     .map((type) => `<option value="${type}">${eventTypeNames[type] || type}</option>`)
     .join('');
+
+  const adms = ['ALL', ...new Set(roadRowsAll.map((r) => String(r.administracao || '')).filter(Boolean)).values()].sort((a, b) => a === 'ALL' ? -1 : a.localeCompare(b));
+  admSel.innerHTML = adms
+    .map((a) => `<option value="${a}">${a === 'ALL' ? 'Todas as administrações' : a}</option>`)
+    .join('');
+  admSel.value = state.adm;
+  if (admSel.value !== state.adm) { state.adm = 'ALL'; admSel.value = 'ALL'; }
 
   const rankedRoads = roadRowsForFilterOptions()
     .sort((a, b) => metricValue(b, state.metric) - metricValue(a, state.metric));
@@ -1724,6 +1742,13 @@ function wireEvents() {
     render();
   });
 
+  document.getElementById('fltAdm').addEventListener('change', (ev) => {
+    state.adm = ev.target.value;
+    state.road = 'ALL';
+    updateFilters();
+    render();
+  });
+
   document.getElementById('fltSpatialLevel').addEventListener('change', (ev) => {
     state.spatialLevel = ev.target.value;
     updateFilters();
@@ -1753,6 +1778,7 @@ function wireEvents() {
     state.metric = 'sinistros';
     state.year = 'ALL';
     state.eventType = 'ALL';
+    state.adm = 'ALL';
     state.road = 'ALL';
     state.topN = 8;
     state.spatialLevel = 'rodovia';
@@ -1760,6 +1786,7 @@ function wireEvents() {
     pendingFit = true;
     document.getElementById('fltMetric').value = state.metric;
     document.getElementById('fltEventType').value = state.eventType;
+    document.getElementById('fltAdm').value = state.adm;
     document.getElementById('fltTopN').value = String(state.topN);
     document.getElementById('fltSpatialLevel').value = state.spatialLevel;
     updateFilters();
