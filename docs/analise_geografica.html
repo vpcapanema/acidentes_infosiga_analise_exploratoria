@@ -8,6 +8,10 @@
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Basemap vetorial: MapLibre desenha a base, gl-leaflet a entrega ao Leaflet. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css"/>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.2/leaflet-maplibre-gl.js"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="assets/shpwrite.bundle.js"></script>
 <script src="assets/sql-wasm.js"></script>
@@ -2093,10 +2097,7 @@ async function init() {
     setStatus('Carregando base geoespacial...', false);
 
     map = L.map('map', { zoomControl: true, dragging: false }).setView([-22.5, -48.5], 7);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      attribution: '© OpenStreetMap © CARTO',
-      maxZoom: 19
-    }).addTo(map);
+    L.maplibreGL({ style: 'https://tiles.openfreemap.org/styles/positron', interactive: false, attributionControl: false }).addTo(map);
 
     // Pan apenas com o botao do meio (roda) pressionado. O ponteiro padrao na
     // area do mapa permanece a seta de selecao (default), e nao a "mao" do

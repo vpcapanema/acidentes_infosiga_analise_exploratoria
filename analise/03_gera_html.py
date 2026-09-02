@@ -1098,6 +1098,10 @@ year_options_html = "\n".join(f'<option value="{int(a)}">{int(a)}</option>' for 
 geo_head = """
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Basemap vetorial: MapLibre desenha a base, gl-leaflet a entrega ao Leaflet. -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.css"/>
+<script src="https://cdn.jsdelivr.net/npm/maplibre-gl@5.9.0/dist/maplibre-gl.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.1.2/leaflet-maplibre-gl.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
 """
 
@@ -1644,7 +1648,8 @@ function updateKpis(rows, segs) {{
 }}
 
 const mapa = L.map('map', {{ zoomControl: true }}).setView([-22.5, -48.5], 7);
-const baseLight = L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{ attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }}).addTo(mapa);
+L.maplibreGL({{ style: 'https://tiles.openfreemap.org/styles/positron', interactive: false, attributionControl: false }}).addTo(mapa);
+mapa.attributionControl.addAttribution('© OpenStreetMap © OpenFreeMap');
 mapa.attributionControl.setPrefix(false);
 window.addEventListener('load', () => setTimeout(() => mapa.invalidateSize(), 120));
 window.addEventListener('resize', () => mapa.invalidateSize());
@@ -2849,7 +2854,8 @@ function layout2(title, xTitle='', yTitle='') {{
   }};
 }}
 const mapSub = L.map('mapSub', {{ zoomControl: true }}).setView([-22.5, -48.5], 7);
-L.tileLayer('https://{{s}}.basemaps.cartocdn.com/light_all/{{z}}/{{x}}/{{y}}{{r}}.png', {{ attribution: '© OpenStreetMap © CARTO', maxZoom: 19 }}).addTo(mapSub);
+L.maplibreGL({{ style: 'https://tiles.openfreemap.org/styles/positron', interactive: false, attributionControl: false }}).addTo(mapSub);
+mapSub.attributionControl.addAttribution('© OpenStreetMap © OpenFreeMap');
 mapSub.attributionControl.setPrefix(false);
 window.addEventListener('load', () => setTimeout(() => mapSub.invalidateSize(), 120));
 window.addEventListener('resize', () => mapSub.invalidateSize());
