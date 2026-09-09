@@ -628,6 +628,7 @@ footer a{color:#fff;text-decoration:none}
 
 NAV = """
 <nav class="top">
+  <a href="glossario.html">Glossário</a>
   <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
   <a href="dashboard_principal.html"><i class="fa-solid fa-chart-column"></i> Dashboard</a>
   <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Análise Geográfica</a>
