@@ -9,6 +9,7 @@ analise/
   01_processa_dados.py      # ETL e consolidação dos CSVs do InfoSiga
   02_analise_geografica.py  # Cruzamento espacial com a malha rodoviária
   03_gera_html.py           # Geração dos dashboards HTML
+  04_gera_municipios.py     # Malha IBGE e associação dos trechos aos municípios
   serve.py                  # Servidor HTTP local para visualizar os dashboards
   requirements.txt
 docs/                       # Dashboards HTML publicáveis (GitHub Pages)
@@ -31,6 +32,7 @@ pip install -r analise/requirements.txt
 python analise/01_processa_dados.py
 python analise/02_analise_geografica.py
 python analise/03_gera_html.py
+python analise/04_gera_municipios.py
 
 python analise/serve.py 8765
 ```
@@ -42,3 +44,6 @@ Abra http://localhost:8765/index.html no navegador.
 A pasta `dados/` não é versionada. É necessário baixar:
 - CSVs do InfoSiga-SP (pessoas, sinistros, veículos) em `dados/dados_infosiga/`
 - Shapefile da Malha Rodoviária Estadual em `dados/Sistema Rodoviário Estadual/`
+
+A malha oficial dos municípios paulistas de 2025 é baixada automaticamente do
+IBGE por `analise/04_gera_municipios.py` quando ainda não estiver em `dados/`.

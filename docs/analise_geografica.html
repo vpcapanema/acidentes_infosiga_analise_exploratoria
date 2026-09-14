@@ -625,6 +625,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
         <select id="fltSpatialLevel">
           <option value="rodovia" selected>Rodovia</option>
           <option value="trecho">Trecho</option>
+          <option value="municipio">Município</option>
         </select>
       </label>
       <label>Administração
@@ -765,7 +766,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
 
     <h3>Fonte e período</h3>
     <ul>
-      <li>Fonte primária: Infosiga SP (CGSV/Detran SP), com agregação espacial em malha do DER/SP (Sistema Rodoviário Estadual).</li>
+      <li>Fonte primária: Infosiga SP (CGSV/Detran SP), com agregação espacial em malha do DER/SP (Sistema Rodoviário Estadual). A escala municipal utiliza a Malha Municipal Digital 2025 do IBGE.</li>
       <li>Recorte temporal disponível: anos presentes no seletor de período. A opção "Todos os períodos" agrega o intervalo integral.</li>
       <li>Recorte espacial: rodovias estaduais e federais delegadas com geometria disponível na malha. Rodovias municipais e vias urbanas não estão incluídas.</li>
     </ul>
@@ -775,13 +776,15 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
       <li><strong>Sinistro</strong>: ocorrência registrada no Infosiga, classificada em quatro tipos (Colisão, Choque, Atropelamento e Outros). Demais subtipos do dicionário original são consolidados em "Outros".</li>
       <li><strong>Óbito</strong>: vítima fatal vinculada a sinistro registrado no recorte selecionado.</li>
       <li><strong>Subtrecho</strong>: segmento de rodovia delimitado por <code>KmInicial</code> e <code>KmFinal</code>, identificado por <code>trecho_id</code> na malha do DER/SP.</li>
+      <li><strong>Município</strong>: polígono derivado da malha oficial do IBGE, com geometria simplificada para visualização web, ao qual cada subtrecho foi associado por cruzamento espacial. Nessa escala são apresentados somente totais absolutos de eventos, óbitos e vítimas graves.</li>
     </ul>
 
     <h3>Fórmulas dos indicadores</h3>
     <ul>
-      <li><strong>Sinistros</strong> e <strong>Óbitos</strong>: somatório das ocorrências no recorte (rodovia ou subtrecho, ano e tipo de evento selecionados).</li>
+      <li><strong>Sinistros</strong> e <strong>Óbitos</strong>: somatório das ocorrências no recorte (rodovia, subtrecho ou município, ano e tipo de evento selecionados).</li>
       <li><strong>Sinistros por km</strong> = <em>Σ sinistros</em> / <em>extensão única do recorte (km)</em>. Para rodovia, a extensão é <code>km_total</code> da rodovia; para subtrecho, é <code>Extensao</code>; para a série temporal, soma-se a extensão única por entidade do recorte. Não se utiliza média de taxas individuais.</li>
       <li><strong>Letalidade (%)</strong> = <em>(Σ óbitos / Σ sinistros)</em> × 100, calculada sobre os totais agregados do recorte. O KPI "Letalidade ponderada" segue a mesma definição, evitando média aritmética simples de taxas.</li>
+      <li>Os indicadores por quilômetro e a letalidade não são calculados nem exibidos na escala municipal.</li>
     </ul>
 
     <h3>Classificação de criticidade</h3>
@@ -807,6 +810,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
 <script>
 const DATA_URL = 'assets/geo/rodovias_dashboard_main.json';
 const SEGMENTS_URL = 'assets/geo/rodovias_dashboard_segments.json';
+const MUNICIPALITIES_URL = 'assets/geo/municipios_dashboard.json';
 const COMP_ADM_URL = 'assets/geo/comp_adm.json';
 
 const state = {
@@ -846,6 +850,8 @@ let segRowsByYear = [];
 let segRowsByType = [];
 let segRowsByYearType = [];
 let malha = { type: 'FeatureCollection', features: [] };
+let municipios = { type: 'FeatureCollection', features: [] };
+let trechoMunicipio = {};
 let compAdmByTipo = [];
 let compAdmByAno = [];
 let compAdmByAnoTipo = [];
@@ -856,6 +862,7 @@ let roadLayer;
 let mapLegendControl;
 let lastBreakdownByRoad = {};
 let lastBreakdownBySegment = {};
+let lastBreakdownByMunicipality = {};
 let lastRankYKeys = [];
 // fitBounds e custoso e quebra a navegacao do usuario; deve ocorrer apenas na
 // carga inicial e em reset explicito, nunca a cada render.
@@ -905,6 +912,24 @@ function filterByEventType(rows) {
   return rows.filter((r) => normalizeEventType(r) === state.eventType);
 }
 
+function municipalityInfoForRow(row) {
+  if (row?.CD_MUN && row?.NM_MUN) {
+    return { CD_MUN: String(row.CD_MUN), NM_MUN: String(row.NM_MUN) };
+  }
+  const key = String(row?.trecho_id || row?.Subtrecho || '').trim();
+  const info = trechoMunicipio[key];
+  return info ? { CD_MUN: String(info[0]), NM_MUN: String(info[1]) } : null;
+}
+
+function enrichRowsWithMunicipality(rows) {
+  rows.forEach((row) => {
+    const info = municipalityInfoForRow(row);
+    if (!info) return;
+    row.CD_MUN = info.CD_MUN;
+    row.NM_MUN = info.NM_MUN;
+  });
+}
+
 function uniqueBySegment(rows) {
   const map = new Map();
   rows.forEach((row) => {
@@ -932,6 +957,8 @@ function aggregateSegmentsAcrossYears(rows) {
         KmFinal: Number(r.KmFinal ?? r.km_final ?? NaN),
         Extensao: Number(r.Extensao ?? 0),
         administracao: String(r.administracao || ''),
+        CD_MUN: r.CD_MUN || '',
+        NM_MUN: r.NM_MUN || '',
         sinistros: 0,
         obitos: 0,
         graves: 0
@@ -950,6 +977,27 @@ function aggregateSegmentsAcrossYears(rows) {
     obitos_por_km:     r.Extensao > 0 ? r.obitos    / r.Extensao : 0,
     indice_letalidade: r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0
   }));
+}
+
+function aggregateByMunicipality(rows) {
+  const byMunicipality = {};
+  rows.forEach((r) => {
+    const info = municipalityInfoForRow(r);
+    if (!info?.CD_MUN) return;
+    if (!byMunicipality[info.CD_MUN]) {
+      byMunicipality[info.CD_MUN] = {
+        CD_MUN: info.CD_MUN,
+        NM_MUN: info.NM_MUN,
+        sinistros: 0,
+        obitos: 0,
+        graves: 0
+      };
+    }
+    byMunicipality[info.CD_MUN].sinistros += Number(r.sinistros || 0);
+    byMunicipality[info.CD_MUN].obitos += Number(r.obitos || r.vitimas_fatais || 0);
+    byMunicipality[info.CD_MUN].graves += Number(r.graves || 0);
+  });
+  return Object.values(byMunicipality);
 }
 
 function buildSegmentRowsFromMalha() {
@@ -981,6 +1029,7 @@ function addToBreakdown(target, evt, value) {
 function buildBreakdownMaps() {
   const byRoad = {};
   const bySegment = {};
+  const byMunicipality = {};
 
   const roadSource = (roadRowsByYearType.length ? roadRowsByYearType : []).filter((r) => {
     if (state.year !== 'ALL' && String(r.ano_sinistro) !== String(state.year)) return false;
@@ -997,6 +1046,7 @@ function buildBreakdownMaps() {
   const segSource = (segRowsByYearType.length ? segRowsByYearType : []).filter((r) => {
     if (state.year !== 'ALL' && String(r.ano_sinistro) !== String(state.year)) return false;
     if (state.road !== 'ALL' && String(r.Rodovia || '') !== String(state.road)) return false;
+    if (state.adm !== 'ALL' && String(r.administracao || '').toUpperCase() !== state.adm.toUpperCase()) return false;
     return true;
   });
   segSource.forEach((r) => {
@@ -1013,9 +1063,14 @@ function buildBreakdownMaps() {
       if (!bySegment[seg]) bySegment[seg] = createEmptyBreakdown();
       addToBreakdown(bySegment[seg], evt, weight);
     }
+    const municipality = municipalityInfoForRow(r);
+    if (municipality?.CD_MUN) {
+      if (!byMunicipality[municipality.CD_MUN]) byMunicipality[municipality.CD_MUN] = createEmptyBreakdown();
+      addToBreakdown(byMunicipality[municipality.CD_MUN], evt, weight);
+    }
   });
 
-  return { byRoad, bySegment };
+  return { byRoad, bySegment, byMunicipality };
 }
 
 function breakdownSummary(breakdown) {
@@ -1044,6 +1099,7 @@ function predominantEventLabel(breakdown) {
 }
 
 function rankYAxisLabel(row) {
+  if (state.spatialLevel === 'municipio') return String(row?.NM_MUN || '-');
   const road = String(row?.Rodovia || '-').toUpperCase();
   const kmI = Number(row?.KmInicial ?? row?.km_inicial);
   const kmF = Number(row?.KmFinal ?? row?.km_final);
@@ -1054,6 +1110,7 @@ function rankYAxisLabel(row) {
 }
 
 function rankEntityKey(row) {
+  if (state.spatialLevel === 'municipio') return String(row?.CD_MUN || '').trim();
   if (state.spatialLevel === 'trecho') return String(row?.trecho_id || row?.Subtrecho || '').trim();
   return String(row?.Rodovia || '').trim();
 }
@@ -1165,6 +1222,9 @@ function scopeSegmentRows(opts) {
   } else {
     base = pickBestSegmentBase();
   }
+  if (state.adm !== 'ALL') {
+    base = base.filter((r) => String(r.administracao || '').toUpperCase() === state.adm.toUpperCase());
+  }
   if (opts && opts.ignoreRoad) return base;
   if (state.road !== 'ALL') {
     base = base.filter((r) => String(r.Rodovia || '') === String(state.road));
@@ -1172,27 +1232,41 @@ function scopeSegmentRows(opts) {
   return base;
 }
 
+function scopeMunicipalityRows(opts) {
+  return aggregateByMunicipality(scopeSegmentRows(opts));
+}
+
 function currentRowsForSpatialLevel() {
+  if (state.spatialLevel === 'municipio') return scopeMunicipalityRows();
   if (state.spatialLevel === 'trecho') return scopeSegmentRows();
   return scopeRows();
 }
 
 function roadRowsForFilters() {
-  if (state.spatialLevel === 'trecho') {
+  if (state.spatialLevel === 'trecho' || state.spatialLevel === 'municipio') {
     return aggregateByRoad(scopeSegmentRows());
   }
   return scopeRows();
 }
 
 function roadRowsForFilterOptions() {
-  if (state.spatialLevel === 'trecho') {
-    let base = pickBestSegmentBase();
+  if (state.spatialLevel === 'trecho' || state.spatialLevel === 'municipio') {
+    let base;
     if (state.eventType !== 'ALL') {
-      base = segRowsByType.length ? segRowsByType : pickBestSegmentBase();
+      base = segRowsByYearType.length
+        ? segRowsByYearType
+        : (segRowsByType.length ? segRowsByType : pickBestSegmentBase());
       base = filterByEventType(base);
+    } else if (state.year !== 'ALL' && segRowsByYear.length) {
+      base = segRowsByYear;
+    } else {
+      base = pickBestSegmentBase();
     }
     if (state.year !== 'ALL') {
       base = base.filter((r) => String(r.ano_sinistro) === String(state.year));
+    }
+    if (state.adm !== 'ALL') {
+      base = base.filter((r) => String(r.administracao || '').toUpperCase() === state.adm.toUpperCase());
     }
     return aggregateByRoad(base);
   }
@@ -1206,15 +1280,17 @@ function roadRowsForFilterOptions() {
   return aggregateByRoad(base);
 }
 
-// Serie temporal correta: para cada ano agrega sinistros e obitos do recorte e
-// recalcula sinistros_por_km e indice_letalidade com denominadores reais.
+// Serie temporal correta: para cada ano agrega sinistros e obitos do recorte.
+// Em rodovias/trechos, recalcula as taxas com denominadores reais; em municipios,
+// preserva somente os totais absolutos.
 // O denominador de extensao e a soma do km_unique por entidade (rodovia ou trecho)
 // presente no ano corrente, evitando media de medias.
 function scopeTimeline() {
   const isTrecho = state.spatialLevel === 'trecho';
+  const isMunicipio = state.spatialLevel === 'municipio';
 
   let base;
-  if (isTrecho) {
+  if (isTrecho || isMunicipio) {
     base = state.eventType === 'ALL'
       ? segRowsByYear
       : (segRowsByYearType.length ? filterByEventType(segRowsByYearType) : filterByEventType(segRowsByYear));
@@ -1226,6 +1302,12 @@ function scopeTimeline() {
 
   if (state.road !== 'ALL') {
     base = base.filter((r) => String(r.Rodovia || '') === String(state.road));
+  }
+  if (state.adm !== 'ALL') {
+    base = base.filter((r) => String(r.administracao || '').toUpperCase() === state.adm.toUpperCase());
+  }
+  if (isMunicipio && state.focusKey) {
+    base = base.filter((r) => municipalityInfoForRow(r)?.CD_MUN === state.focusKey);
   }
 
   const byYear = {};
@@ -1242,7 +1324,9 @@ function scopeTimeline() {
     }
     byYear[year].sinistros += Number(r.sinistros || 0);
     byYear[year].obitos += Number(r.obitos || r.vitimas_fatais || 0);
-    const entityKey = isTrecho
+    const entityKey = isMunicipio
+      ? municipalityInfoForRow(r)?.CD_MUN
+      : isTrecho
       ? String(r.trecho_id || r.Subtrecho || '').trim()
       : String(r.Rodovia || '').trim();
     if (entityKey) {
@@ -1260,8 +1344,8 @@ function scopeTimeline() {
         ano_sinistro: r.ano_sinistro,
         sinistros: r.sinistros,
         obitos: r.obitos,
-        sinistros_por_km: kmTotal > 0 ? r.sinistros / kmTotal : 0,
-        indice_letalidade: r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0
+        sinistros_por_km: isMunicipio ? null : (kmTotal > 0 ? r.sinistros / kmTotal : 0),
+        indice_letalidade: isMunicipio ? null : (r.sinistros > 0 ? (r.obitos / r.sinistros) * 100 : 0)
       };
     })
     .sort((a, b) => Number(a.ano_sinistro) - Number(b.ano_sinistro));
@@ -1276,11 +1360,25 @@ function classify(value, max) {
   return { color: '#7f1d1d', label: 'Crítico' };
 }
 
+function syncMetricAvailability() {
+  const metricSelect = document.getElementById('fltMetric');
+  const isMunicipality = state.spatialLevel === 'municipio';
+  ['sinistros_por_km', 'indice_letalidade'].forEach((value) => {
+    const option = metricSelect.querySelector(`option[value="${value}"]`);
+    if (option) option.disabled = isMunicipality;
+  });
+  if (isMunicipality && !['sinistros', 'obitos'].includes(state.metric)) {
+    state.metric = 'sinistros';
+  }
+  metricSelect.value = state.metric;
+}
+
 function updateFilters() {
   const yearSel = document.getElementById('fltYear');
   const eventSel = document.getElementById('fltEventType');
   const admSel = document.getElementById('fltAdm');
   const roadSel = document.getElementById('fltRoad');
+  syncMetricAvailability();
 
   const years = [...new Set(roadRowsByYear.map((r) => String(r.ano_sinistro)).filter(Boolean))]
     .sort((a, b) => Number(a) - Number(b));
@@ -1336,6 +1434,7 @@ function updateFilters() {
 function updateKpis(rows) {
   const sumSin = rows.reduce((acc, r) => acc + Number(r.sinistros || 0), 0);
   const sumObi = rows.reduce((acc, r) => acc + Number(r.obitos || 0), 0);
+  const sumGraves = rows.reduce((acc, r) => acc + Number(r.graves || 0), 0);
   const letalidadePonderada = sumSin > 0 ? (sumObi / sumSin) * 100 : 0;
 
   const segRows = scopeSegmentRows();
@@ -1347,20 +1446,28 @@ function updateKpis(rows) {
   );
   const top = [...rows].sort((a, b) => metricValue(b, state.metric) - metricValue(a, state.metric))[0];
 
-  document.getElementById('kpis').innerHTML = [
-    `<div class="kpi"><div class="label">Rodovias no recorte</div><div class="value">${fmt(rodoviasUnicas.size || rows.length)}</div></div>`,
-    `<div class="kpi"><div class="label">Subtrechos no recorte</div><div class="value">${fmt(trechosUnicos.size)}</div></div>`,
-    `<div class="kpi"><div class="label">Sinistros</div><div class="value">${fmt(sumSin)}</div></div>`,
-    `<div class="kpi alert"><div class="label">Óbitos</div><div class="value">${fmt(sumObi)}</div></div>`,
-    `<div class="kpi"><div class="label">Letalidade ponderada</div><div class="value">${fmt(letalidadePonderada, 2)}%</div></div>`
-  ].join('');
+  const kpiCards = state.spatialLevel === 'municipio'
+    ? [
+      `<div class="kpi"><div class="label">Municípios com eventos</div><div class="value">${fmt(rows.length)}</div></div>`,
+      `<div class="kpi"><div class="label">Sinistros</div><div class="value">${fmt(sumSin)}</div></div>`,
+      `<div class="kpi alert"><div class="label">Óbitos</div><div class="value">${fmt(sumObi)}</div></div>`,
+      `<div class="kpi"><div class="label">Vítimas graves</div><div class="value">${fmt(sumGraves)}</div></div>`
+    ]
+    : [
+      `<div class="kpi"><div class="label">Rodovias no recorte</div><div class="value">${fmt(rodoviasUnicas.size || rows.length)}</div></div>`,
+      `<div class="kpi"><div class="label">Subtrechos no recorte</div><div class="value">${fmt(trechosUnicos.size)}</div></div>`,
+      `<div class="kpi"><div class="label">Sinistros</div><div class="value">${fmt(sumSin)}</div></div>`,
+      `<div class="kpi alert"><div class="label">Óbitos</div><div class="value">${fmt(sumObi)}</div></div>`,
+      `<div class="kpi"><div class="label">Letalidade ponderada</div><div class="value">${fmt(letalidadePonderada, 2)}%</div></div>`
+    ];
+  document.getElementById('kpis').innerHTML = kpiCards.join('');
 
   const metricLabel = metricNames[state.metric];
-  const spatialLabel = state.spatialLevel === 'trecho' ? 'trecho' : 'rodovia';
+  const spatialLabel = state.spatialLevel === 'municipio' ? 'município' : (state.spatialLevel === 'trecho' ? 'trecho' : 'rodovia');
   const periodLabel = state.year === 'ALL' ? 'todos os períodos' : `ano ${state.year}`;
   const eventLabel = eventTypeNames[state.eventType] || 'Todos';
   const topTxt = top
-    ? `${top.Rodovia || 'Trecho'} (${fmt(metricValue(top, state.metric), metricDigits(state.metric))} ${metricLabel.toLowerCase()})`
+    ? `${top.NM_MUN || top.Rodovia || 'Trecho'} (${fmt(metricValue(top, state.metric), metricDigits(state.metric))} ${metricLabel.toLowerCase()})`
     : 'sem registro no recorte';
 
   document.getElementById('insight').textContent =
@@ -1371,12 +1478,79 @@ function segmentKeyFromFeature(feature) {
   return feature?.properties?.trecho_id || feature?.properties?.Subtrecho || null;
 }
 
+function municipalityKeyFromFeature(feature) {
+  return String(feature?.properties?.CD_MUN || '');
+}
+
 function updateMap() {
   const metricLabel = metricNames[state.metric];
   const digits = metricDigits(state.metric);
   const breakdownMaps = buildBreakdownMaps();
   lastBreakdownByRoad = breakdownMaps.byRoad;
   lastBreakdownBySegment = breakdownMaps.bySegment;
+  lastBreakdownByMunicipality = breakdownMaps.byMunicipality;
+
+  if (state.spatialLevel === 'municipio') {
+    const rows = scopeMunicipalityRows();
+    const lookup = Object.fromEntries(rows.map((r) => [r.CD_MUN, r]));
+    const maxMetric = Math.max(0, ...rows.map((r) => metricValue(r, state.metric)));
+    if (roadLayer) map.removeLayer(roadLayer);
+    roadLayer = L.geoJSON(municipios, {
+      style: (feature) => {
+        const code = municipalityKeyFromFeature(feature);
+        const current = lookup[code];
+        const severity = classify(metricValue(current, state.metric), maxMetric);
+        const focused = state.focusKey === code;
+        return {
+          color: focused ? '#0b3a70' : '#ffffff',
+          weight: focused ? 3 : 0.8,
+          fillColor: severity.color,
+          fillOpacity: current ? 0.76 : 0.22,
+          opacity: 1
+        };
+      },
+      onEachFeature: (feature, layer) => {
+        const props = feature?.properties || {};
+        const code = municipalityKeyFromFeature(feature);
+        const current = lookup[code] || {};
+        const breakdown = lastBreakdownByMunicipality[code];
+        layer.bindTooltip(
+          `<div style="min-width:220px">` +
+          `<div style="font-weight:700;color:#0b3a70">${props.NM_MUN || '-'}</div>` +
+          `<div>Código IBGE: <b>${code || '-'}</b></div>` +
+          `<hr style="margin:4px 0;border:none;border-top:1px solid #e5e7eb">` +
+          `<div>Sinistros: <b>${fmt(current.sinistros || 0)}</b></div>` +
+          `<div>Óbitos: <b>${fmt(current.obitos || 0)}</b></div>` +
+          `<div>Vítimas graves: <b>${fmt(current.graves || 0)}</b></div>` +
+          `<div>Tipo predominante: <b>${predominantEventLabel(breakdown)}</b></div>` +
+          `</div>`,
+          { sticky: true, direction: 'top', opacity: 0.96 }
+        );
+        layer.on('click', () => setFocus(code));
+      }
+    }).addTo(map);
+
+    if (pendingFit) {
+      const bounds = roadLayer.getBounds?.();
+      if (bounds && bounds.isValid()) map.fitBounds(bounds, { padding: [18, 18], maxZoom: 8 });
+      pendingFit = false;
+    }
+    if (state.focusKey) {
+      const focusBounds = L.latLngBounds([]);
+      roadLayer.eachLayer((layer) => {
+        if (municipalityKeyFromFeature(layer.feature) === state.focusKey && layer.getBounds) {
+          focusBounds.extend(layer.getBounds());
+        }
+      });
+      if (focusBounds.isValid()) map.fitBounds(focusBounds, { padding: [40, 40], maxZoom: 11 });
+    }
+
+    const periodLabel = state.year === 'ALL' ? 'todos os períodos' : `ano ${state.year}`;
+    const eventLabel = eventTypeNames[state.eventType] || 'Todos';
+    document.getElementById('mapSubtitle').textContent =
+      `Municípios coloridos pelo número de ${metricNames[state.metric].toLowerCase()} em ${periodLabel}, considerando ${eventLabel.toLowerCase()}. Fonte territorial: IBGE 2025.`;
+    return;
+  }
 
   // O mapa SEMPRE colore com base no recorte global (ignora state.road),
   // para nao apagar as demais feicoes quando ha uma rodovia em foco/filtro.
@@ -1547,11 +1721,11 @@ function updateRank(rows) {
   const eventSuffix = state.eventType === 'ALL'
     ? ' (todos os tipos de evento)'
     : ` (tipo: ${eventLabel.toLowerCase()})`;
-  const entityLabel = state.spatialLevel === 'trecho' ? 'subtrechos' : 'rodovias';
+  const entityLabel = state.spatialLevel === 'municipio' ? 'municípios' : (state.spatialLevel === 'trecho' ? 'subtrechos' : 'rodovias');
   // Quando ha filtro de rodovia restringindo o conjunto, o titulo reflete o
   // recorte real em vez de prometer um Top N ficticio.
   const effectiveN = Math.min(Number(state.topN || 8), ranked.length);
-  const rankTitle = state.road !== 'ALL' && state.spatialLevel !== 'trecho'
+  const rankTitle = state.road !== 'ALL' && state.spatialLevel === 'rodovia'
     ? `${state.road} - ${metricNames[state.metric].toLowerCase()}${eventSuffix}`
     : `Top ${effectiveN} ${entityLabel} por ${metricNames[state.metric].toLowerCase()}${eventSuffix}`;
 
@@ -1565,7 +1739,9 @@ function updateRank(rows) {
   const severityLabels = xValues.map((v) => classify(Number(v || 0), maxX).label);
 
   const breakdowns = yKeys.map((key) => (
-    state.spatialLevel === 'trecho' ? lastBreakdownBySegment[key] : lastBreakdownByRoad[key]
+    state.spatialLevel === 'municipio'
+      ? lastBreakdownByMunicipality[key]
+      : (state.spatialLevel === 'trecho' ? lastBreakdownBySegment[key] : lastBreakdownByRoad[key])
   ));
 
   const orderedTypes = ['COLISAO', 'CHOQUE', 'ATROPELAMENTO', 'OUTROS'];
@@ -1641,12 +1817,22 @@ function updateTimeline() {
   const rows = scopeTimeline();
   const timelineTypeSource = [];
 
-  if (state.spatialLevel === 'trecho') {
+  if (state.spatialLevel === 'trecho' || state.spatialLevel === 'municipio') {
     if (segRowsByYearType.length) {
-      const base = segRowsByYearType.filter((r) => state.road === 'ALL' || String(r.Rodovia || '') === String(state.road));
+      const base = segRowsByYearType.filter((r) => {
+        if (state.road !== 'ALL' && String(r.Rodovia || '') !== String(state.road)) return false;
+        if (state.adm !== 'ALL' && String(r.administracao || '').toUpperCase() !== state.adm.toUpperCase()) return false;
+        if (state.spatialLevel === 'municipio' && state.focusKey && municipalityInfoForRow(r)?.CD_MUN !== state.focusKey) return false;
+        return true;
+      });
       timelineTypeSource.push(...base);
     } else {
-      const base = segRowsByYear.filter((r) => state.road === 'ALL' || String(r.Rodovia || '') === String(state.road));
+      const base = segRowsByYear.filter((r) => {
+        if (state.road !== 'ALL' && String(r.Rodovia || '') !== String(state.road)) return false;
+        if (state.adm !== 'ALL' && String(r.administracao || '').toUpperCase() !== state.adm.toUpperCase()) return false;
+        if (state.spatialLevel === 'municipio' && state.focusKey && municipalityInfoForRow(r)?.CD_MUN !== state.focusKey) return false;
+        return true;
+      });
       timelineTypeSource.push(...base);
     }
   } else {
@@ -1739,8 +1925,11 @@ function updateTimeline() {
   const eventSuffixTL = state.eventType === 'ALL'
     ? ' (todos os tipos de evento)'
     : ` (tipo: ${eventLabelTL.toLowerCase()})`;
-  const entityLabelTL = state.spatialLevel === 'trecho' ? 'subtrechos' : 'rodovias';
-  const roadLabelTL = state.road === 'ALL' ? entityLabelTL : state.road;
+  const entityLabelTL = state.spatialLevel === 'municipio' ? 'municípios' : (state.spatialLevel === 'trecho' ? 'subtrechos' : 'rodovias');
+  const focusedMunicipality = state.spatialLevel === 'municipio' && state.focusKey
+    ? scopeMunicipalityRows().find((r) => r.CD_MUN === state.focusKey)?.NM_MUN
+    : null;
+  const roadLabelTL = focusedMunicipality || (state.road === 'ALL' ? entityLabelTL : state.road);
   const timelineTitle = `Tendência temporal de ${metricNames[state.metric].toLowerCase()} — ${roadLabelTL}${eventSuffixTL}`;
 
   // Legenda abaixo do plot, com margem inferior generosa para acomodar
@@ -1852,6 +2041,32 @@ function updateDetailTable(rows) {
     return;
   }
 
+  if (state.spatialLevel === 'municipio') {
+    const rowsHtml = ranked.map((item, idx) => {
+      const key = String(item.CD_MUN || '');
+      const value = fmt(metricValue(item, state.metric), metricDigits(state.metric));
+      const breakdown = lastBreakdownByMunicipality[key];
+      const pred = predominantEventLabel(breakdown);
+      const focusedClass = state.focusKey && key === state.focusKey ? ' class="focused"' : '';
+      return `<tr data-key="${key.replace(/"/g, '&quot;')}"${focusedClass}><td>${idx + 1}</td><td>${key || '-'}</td><td>${item.NM_MUN || '-'}</td><td>${value}</td><td>${fmt(item.sinistros || 0)}</td><td>${fmt(item.obitos || 0)}</td><td>${fmt(item.graves || 0)}</td><td>${pred}</td></tr>`;
+    }).join('');
+
+    host.innerHTML = [
+      `<div class="detail-note"><strong>Top ${state.topN} municípios no recorte atual</strong> · Tipo de evento filtrado: ${eventTypeNames[state.eventType] || 'Todos'}. Clique em uma linha para focar.</div>`,
+      '<table>',
+      '<thead><tr><th>Posição</th><th>Código IBGE</th><th>Município</th><th>Indicador</th><th>Sinistros</th><th>Óbitos</th><th>Vítimas graves</th><th>Tipo predominante</th></tr></thead>',
+      `<tbody>${rowsHtml}</tbody>`,
+      '</table>'
+    ].join('');
+    host.querySelectorAll('tbody tr').forEach((tr) => {
+      tr.addEventListener('click', () => {
+        const key = tr.getAttribute('data-key') || '';
+        if (key) setFocus(key);
+      });
+    });
+    return;
+  }
+
   const rowsHtml = ranked.map((item, idx) => {
     const isTrecho = state.spatialLevel === 'trecho';
     const road = item.Rodovia || '-';
@@ -1904,9 +2119,9 @@ function setStatus(text, isError) {
 }
 
 // Foco unificado: clique no mapa, em uma barra do ranking ou em uma linha da
-// tabela escreve o mesmo state.focusKey. setFocus normaliza, ajusta o filtro
-// de rodovia para coerencia e re-renderiza tudo (mapa destaca, tabela destaca,
-// painel detalhado preenche).
+// tabela escreve o mesmo state.focusKey. setFocus normaliza e, nas escalas de
+// rodovia/trecho, ajusta o filtro de rodovia para coerencia. Em seguida tudo e
+// re-renderizado (mapa destaca, tabela destaca, painel detalhado preenche).
 function setFocus(key) {
   if (!key) {
     state.focusKey = null;
@@ -1914,6 +2129,11 @@ function setFocus(key) {
     return;
   }
   state.focusKey = String(key).trim();
+
+  if (state.spatialLevel === 'municipio') {
+    render();
+    return;
+  }
 
   const isTrecho = state.spatialLevel === 'trecho';
   let road = null;
@@ -1934,6 +2154,9 @@ function setFocus(key) {
 
 function findFocusItem() {
   if (!state.focusKey) return null;
+  if (state.spatialLevel === 'municipio') {
+    return scopeMunicipalityRows().find((r) => String(r.CD_MUN || '') === state.focusKey) || null;
+  }
   const isTrecho = state.spatialLevel === 'trecho';
   if (isTrecho) {
     const segs = scopeSegmentRows();
@@ -1953,6 +2176,34 @@ function updateFocusCard() {
     return;
   }
   host.classList.remove('hidden');
+
+  if (state.spatialLevel === 'municipio') {
+    const key = String(item.CD_MUN || '');
+    const breakdown = lastBreakdownByMunicipality[key];
+    const orderedTypes = ['COLISAO', 'CHOQUE', 'ATROPELAMENTO', 'OUTROS'];
+    const total = orderedTypes.reduce((acc, k) => acc + Number(breakdown?.[k] || 0), 0);
+    const typesTxt = total > 0
+      ? orderedTypes
+        .filter((k) => Number(breakdown?.[k] || 0) > 0)
+        .map((k) => `${eventTypeNames[k]}: ${fmt(breakdown[k])} (${fmt((breakdown[k] / total) * 100, 1)}%)`)
+        .join(' · ')
+      : 'Sem detalhamento por tipo no recorte.';
+    host.innerHTML = [
+      '<div class="focus-head">',
+      `<h3 class="focus-title">Município em foco — ${item.NM_MUN || '-'} (${key})</h3>`,
+      '<button type="button" class="focus-clear" id="focusClearBtn">Limpar foco</button>',
+      '</div>',
+      '<div class="focus-grid">',
+      `<div class="focus-item"><div class="label">Sinistros</div><div class="value">${fmt(item.sinistros || 0)}</div></div>`,
+      `<div class="focus-item"><div class="label">Óbitos</div><div class="value">${fmt(item.obitos || 0)}</div></div>`,
+      `<div class="focus-item"><div class="label">Vítimas graves</div><div class="value">${fmt(item.graves || 0)}</div></div>`,
+      '</div>',
+      `<div class="focus-types"><strong>Composição por tipo de evento:</strong> ${typesTxt}</div>`
+    ].join('');
+    const btn = document.getElementById('focusClearBtn');
+    if (btn) btn.addEventListener('click', () => setFocus(null));
+    return;
+  }
 
   const isTrecho = state.spatialLevel === 'trecho';
   const road = item.Rodovia || '-';
@@ -2045,6 +2296,8 @@ function wireEvents() {
 
   document.getElementById('fltSpatialLevel').addEventListener('change', (ev) => {
     state.spatialLevel = ev.target.value;
+    state.focusKey = null;
+    pendingFit = true;
     updateFilters();
     render();
   });
@@ -2106,16 +2359,19 @@ async function init() {
 
     ensureMapLegendControl();
 
-    const [mainResponse, segmentResponse] = await Promise.all([
+    const [mainResponse, segmentResponse, municipalityResponse] = await Promise.all([
       fetch(DATA_URL, { cache: 'no-cache' }),
-      fetch(SEGMENTS_URL, { cache: 'no-cache' })
+      fetch(SEGMENTS_URL, { cache: 'no-cache' }),
+      fetch(MUNICIPALITIES_URL, { cache: 'no-cache' })
     ]);
 
     if (!mainResponse.ok) throw new Error(`Falha ao carregar dados principais: ${mainResponse.status}`);
     if (!segmentResponse.ok) throw new Error(`Falha ao carregar dados de trechos: ${segmentResponse.status}`);
+    if (!municipalityResponse.ok) throw new Error(`Falha ao carregar malha municipal: ${municipalityResponse.status}`);
 
     const data = await mainResponse.json();
     const segmentData = await segmentResponse.json();
+    const municipalityData = await municipalityResponse.json();
     roadRowsAll = data.roadRowsAll || [];
     roadRowsByYear = data.roadRowsByYear || [];
     roadRowsByYearType = data.roadRowsByYearType || [];
@@ -2124,11 +2380,15 @@ async function init() {
     segRowsByYear = segmentData.segRowsByYear || [];
     segRowsByType = segmentData.segRowsByType || [];
     segRowsByYearType = segmentData.segRowsByYearType || [];
+    municipios = municipalityData.municipios || { type: 'FeatureCollection', features: [] };
+    trechoMunicipio = municipalityData.trechoMunicipio || {};
+
+    [segRowsAll, segRowsByYear, segRowsByType, segRowsByYearType].forEach(enrichRowsWithMunicipality);
 
     // Nao sobrescrever segRowsAll com agregado: isso destruiria evento_tipo.
     // Os consumidores que precisam de fallback ja chamam pickBestSegmentBase().
 
-    if (!roadRowsAll.length || !malha.features?.length || !pickBestSegmentBase().length) {
+    if (!roadRowsAll.length || !malha.features?.length || !pickBestSegmentBase().length || !municipios.features?.length) {
       throw new Error('Base carregada sem dados suficientes para renderização.');
     }
 
@@ -2284,6 +2544,11 @@ function renderCompTrechos() {
 }
 
 function applyCompMapMode(active) {
+  if (state.spatialLevel === 'municipio') {
+    compState.active = false;
+    document.getElementById('compMapNote').style.display = 'none';
+    return;
+  }
   compState.active = active;
   document.getElementById('compMapNote').style.display = active ? '' : 'none';
   if (!roadLayer || !malha.features) return;
@@ -2377,6 +2642,20 @@ function downloadBlob(blob, filename) {
 function getExportRows(source) {
   if (source === 'main') {
     const rows = currentRowsForSpatialLevel();
+    if (state.spatialLevel === 'municipio') {
+      const lookup = Object.fromEntries(rows.map((r) => [String(r.CD_MUN), r]));
+      return (municipios.features || []).map((feature) => {
+        const props = feature.properties || {};
+        const row = lookup[String(props.CD_MUN)] || {};
+        return {
+          Codigo_IBGE: props.CD_MUN,
+          Municipio: props.NM_MUN,
+          Sinistros: Number(row.sinistros || 0),
+          Obitos: Number(row.obitos || 0),
+          Vitimas_graves: Number(row.graves || 0)
+        };
+      });
+    }
     return rows.map((r) => ({
       Rodovia: r.Rodovia,
       Administracao: r.administracao || '',
@@ -2411,6 +2690,27 @@ function getExportRows(source) {
 function getExportGeoRows(source) {
   if (source === 'main') {
     const rows = currentRowsForSpatialLevel();
+    if (state.spatialLevel === 'municipio') {
+      const lookup = Object.fromEntries(rows.map((r) => [String(r.CD_MUN), r]));
+      return (municipios.features || []).map((feature) => {
+        const code = municipalityKeyFromFeature(feature);
+        const row = lookup[code] || {};
+        return {
+          type: 'Feature',
+          geometry: feature.geometry,
+          properties: {
+            ...(feature.properties || {}),
+            SINISTROS: Number(row.sinistros || 0),
+            OBITOS: Number(row.obitos || 0),
+            GRAVES: Number(row.graves || 0),
+            ANO: state.year,
+            TIPO_EVT: state.eventType,
+            ADMIN: state.adm,
+            RODOVIA: state.road
+          }
+        };
+      });
+    }
     const allowed = new Set(rows.map((r) => r.Rodovia));
     return malha.features.filter((f) => allowed.has(f.properties.Rodovia));
   }
@@ -2456,7 +2756,20 @@ async function exportSHP(features, filename) {
   if (!features.length) { showToast('Nenhum dado geoespacial no recorte atual.'); return; }
   showToast('Gerando SHP...');
   try {
-    const geojson = { type: 'FeatureCollection', features };
+    // O shp-write separa Polygon/MultiPolygon e LineString/MultiLineString em
+    // lotes que recebem o mesmo nome. Normalizar evita que um lote sobrescreva
+    // o outro dentro do ZIP quando a camada tem geometrias simples e múltiplas.
+    const normalizedFeatures = features.map((feature) => {
+      const geometry = feature.geometry || {};
+      if (geometry.type === 'Polygon') {
+        return { ...feature, geometry: { type: 'MultiPolygon', coordinates: [geometry.coordinates] } };
+      }
+      if (geometry.type === 'LineString') {
+        return { ...feature, geometry: { type: 'MultiLineString', coordinates: [geometry.coordinates] } };
+      }
+      return feature;
+    });
+    const geojson = { type: 'FeatureCollection', features: normalizedFeatures };
     const zip = await shpwrite.zip(geojson, {
       outputType: 'blob',
       compression: 'DEFLATE',
@@ -2468,6 +2781,99 @@ async function exportSHP(features, filename) {
     console.error(e);
     showToast('Erro ao gerar SHP: ' + e.message);
   }
+}
+
+function geometryToGeoPackageBlob(geometry) {
+  const bytes = [];
+  const appendUint32 = (value) => {
+    const buffer = new ArrayBuffer(4);
+    new DataView(buffer).setUint32(0, value, true);
+    bytes.push(...new Uint8Array(buffer));
+  };
+  const appendFloat64 = (value) => {
+    const buffer = new ArrayBuffer(8);
+    new DataView(buffer).setFloat64(0, Number(value), true);
+    bytes.push(...new Uint8Array(buffer));
+  };
+  const appendPoint = (coords) => {
+    appendFloat64(coords[0]);
+    appendFloat64(coords[1]);
+  };
+  const writeWkb = (geom) => {
+    const typeCodes = {
+      Point: 1,
+      LineString: 2,
+      Polygon: 3,
+      MultiPoint: 4,
+      MultiLineString: 5,
+      MultiPolygon: 6,
+      GeometryCollection: 7
+    };
+    const typeCode = typeCodes[geom?.type];
+    if (!typeCode) throw new Error(`Geometria não suportada: ${geom?.type || 'vazia'}`);
+    bytes.push(1);
+    appendUint32(typeCode);
+    if (geom.type === 'Point') {
+      appendPoint(geom.coordinates);
+    } else if (geom.type === 'LineString') {
+      appendUint32(geom.coordinates.length);
+      geom.coordinates.forEach(appendPoint);
+    } else if (geom.type === 'Polygon') {
+      appendUint32(geom.coordinates.length);
+      geom.coordinates.forEach((ring) => {
+        appendUint32(ring.length);
+        ring.forEach(appendPoint);
+      });
+    } else {
+      const children = geom.type === 'MultiPoint'
+        ? geom.coordinates.map((coordinates) => ({ type: 'Point', coordinates }))
+        : geom.type === 'MultiLineString'
+          ? geom.coordinates.map((coordinates) => ({ type: 'LineString', coordinates }))
+          : geom.type === 'MultiPolygon'
+            ? geom.coordinates.map((coordinates) => ({ type: 'Polygon', coordinates }))
+            : (geom.geometries || []);
+      appendUint32(children.length);
+      children.forEach(writeWkb);
+    }
+  };
+
+  writeWkb(geometry);
+  const header = new Uint8Array(8);
+  header[0] = 0x47;
+  header[1] = 0x50;
+  header[2] = 0x00;
+  header[3] = 0x01;
+  new DataView(header.buffer).setInt32(4, 4326, true);
+  const blob = new Uint8Array(header.length + bytes.length);
+  blob.set(header);
+  blob.set(bytes, header.length);
+  return blob;
+}
+
+function featureCollectionBounds(features) {
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+  const visit = (value) => {
+    if (!Array.isArray(value)) return;
+    if (value.length >= 2 && typeof value[0] === 'number' && typeof value[1] === 'number') {
+      minX = Math.min(minX, value[0]);
+      minY = Math.min(minY, value[1]);
+      maxX = Math.max(maxX, value[0]);
+      maxY = Math.max(maxY, value[1]);
+      return;
+    }
+    value.forEach(visit);
+  };
+  features.forEach((feature) => visit(feature.geometry?.coordinates));
+  return [minX, minY, maxX, maxY].every(Number.isFinite)
+    ? [minX, minY, maxX, maxY]
+    : [null, null, null, null];
+}
+
+function sqlIdentifier(value) {
+  return `"${String(value).replace(/"/g, '""')}"`;
 }
 
 async function exportGPKG(features, filename) {
@@ -2482,9 +2888,12 @@ async function exportGPKG(features, filename) {
     db.run(`CREATE TABLE gpkg_spatial_ref_sys (
       srs_name TEXT NOT NULL, srs_id INTEGER NOT NULL PRIMARY KEY,
       organization TEXT NOT NULL, organization_coordsys_id INTEGER NOT NULL,
-      definition TEXT NOT NULL, description TEXT)`);
+      definition TEXT NOT NULL, description TEXT,
+      UNIQUE (organization, organization_coordsys_id))`);
     db.run(`INSERT INTO gpkg_spatial_ref_sys VALUES
-      ('WGS 84 Geographic 2D',4326,'EPSG',4326,'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]',NULL)`);
+      ('Undefined Cartesian SRS',-1,'NONE',-1,'undefined','undefined Cartesian coordinate reference system'),
+      ('Undefined geographic SRS',0,'NONE',0,'undefined','undefined geographic coordinate reference system'),
+      ('WGS 84 Geographic 2D',4326,'EPSG',4326,'GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433]]','longitude/latitude coordinates in decimal degrees on the WGS 84 spheroid')`);
     db.run(`CREATE TABLE gpkg_contents (
       table_name TEXT NOT NULL PRIMARY KEY, data_type TEXT NOT NULL,
       identifier TEXT, description TEXT DEFAULT '', last_change DATETIME NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
@@ -2494,32 +2903,40 @@ async function exportGPKG(features, filename) {
       geometry_type_name TEXT NOT NULL, srs_id INTEGER NOT NULL,
       z TINYINT NOT NULL DEFAULT 0, m TINYINT NOT NULL DEFAULT 0)`);
 
-    const sample = features[0].properties || {};
-    const propCols = Object.keys(sample).map((k) => `"${k}" TEXT`).join(', ');
-    db.run(`CREATE TABLE "${filename}" (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom BLOB, ${propCols})`);
-    db.run(`INSERT INTO gpkg_geometry_columns VALUES ('${filename}','geom','MULTILINESTRING',4326,0,0)`);
-    db.run(`INSERT INTO gpkg_contents VALUES ('${filename}','features','${filename}','',strftime('%Y-%m-%dT%H:%M:%fZ','now'),NULL,NULL,NULL,NULL,4326)`);
+    const propKeys = [...new Set(features.flatMap((feature) => Object.keys(feature.properties || {})))];
+    const propType = (key) => {
+      const values = features.map((feature) => feature.properties?.[key]).filter((value) => value != null && value !== '');
+      if (values.length && values.every((value) => typeof value === 'number' && Number.isInteger(value))) return 'INTEGER';
+      if (values.length && values.every((value) => typeof value === 'number')) return 'REAL';
+      return 'TEXT';
+    };
+    const table = sqlIdentifier(filename);
+    const propCols = propKeys.map((key) => `${sqlIdentifier(key)} ${propType(key)}`).join(', ');
+    db.run(`CREATE TABLE ${table} (fid INTEGER PRIMARY KEY AUTOINCREMENT, geom BLOB NOT NULL${propCols ? ', ' + propCols : ''})`);
+    const geometryTypes = [...new Set(features.map((feature) => String(feature.geometry?.type || '').toUpperCase()).filter(Boolean))];
+    const geometryType = geometryTypes.length === 1 ? geometryTypes[0] : 'GEOMETRY';
+    db.run('INSERT INTO gpkg_geometry_columns VALUES (?,?,?,?,?,?)', [filename, 'geom', geometryType, 4326, 0, 0]);
+    const [minX, minY, maxX, maxY] = featureCollectionBounds(features);
+    db.run(
+      `INSERT INTO gpkg_contents (table_name,data_type,identifier,description,last_change,min_x,min_y,max_x,max_y,srs_id)
+       VALUES (?,?,?,'',strftime('%Y-%m-%dT%H:%M:%fZ','now'),?,?,?,?,?)`,
+      [filename, 'features', filename, minX, minY, maxX, maxY, 4326]
+    );
 
-    const propKeys = Object.keys(sample);
-    const placeholders = '?,' + propKeys.map(() => '?').join(',');
-    const stmt = db.prepare(`INSERT INTO "${filename}" (geom,${propKeys.map(k=>`"${k}"`).join(',')}) VALUES (${placeholders})`);
+    const insertColumns = ['geom', ...propKeys].map(sqlIdentifier).join(',');
+    const placeholders = ['?', ...propKeys.map(() => '?')].join(',');
+    const stmt = db.prepare(`INSERT INTO ${table} (${insertColumns}) VALUES (${placeholders})`);
 
     features.forEach((f) => {
-      const gj = JSON.stringify(f.geometry);
-      const gjBytes = new TextEncoder().encode(gj);
-      const header = new Uint8Array(8);
-      header[0] = 0x47; header[1] = 0x50; header[2] = 0x00; header[3] = 0x01;
-      const view = new DataView(header.buffer);
-      view.setInt32(4, 4326, false);
-      const geomBlob = new Uint8Array(header.length + gjBytes.length);
-      geomBlob.set(header); geomBlob.set(gjBytes, header.length);
-      const vals = [geomBlob, ...propKeys.map((k) => String(f.properties[k] ?? ''))];
+      const geomBlob = geometryToGeoPackageBlob(f.geometry);
+      const vals = [geomBlob, ...propKeys.map((key) => f.properties?.[key] ?? null)];
       stmt.run(vals);
     });
     stmt.free();
 
     const data = db.export();
-    downloadBlob(new Blob([data], { type: 'application/x-sqlite3' }), filename + '.gpkg');
+    db.close();
+    downloadBlob(new Blob([data], { type: 'application/geopackage+sqlite3' }), filename + '.gpkg');
     showToast('GeoPackage exportado.');
   } catch (e) {
     console.error(e);
@@ -2530,7 +2947,9 @@ async function exportGPKG(features, filename) {
 function exportData(source, format) {
   document.querySelectorAll('.export-menu').forEach((m) => { m.style.display = 'none'; });
   const ts = new Date().toISOString().slice(0, 10);
-  const prefix = source === 'main' ? 'infosiga_geo' : 'infosiga_comp_adm';
+  const prefix = source === 'main'
+    ? (state.spatialLevel === 'municipio' ? 'infosiga_municipios' : 'infosiga_geo')
+    : 'infosiga_comp_adm';
   const filename = `${prefix}_${ts}`;
 
   if (format === 'csv')  { exportCSV(getExportRows(source), filename + '.csv'); return; }
