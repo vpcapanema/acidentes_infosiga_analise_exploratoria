@@ -94,7 +94,8 @@ main {
 }
 .kpis {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 12px;
 }
 .kpi {
@@ -151,20 +152,6 @@ main {
   font-weight: 800;
 }
 .controls button:hover { background: var(--azul-escuro); }
-.steps {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.step {
-  background: #fff;
-  border: 1px solid var(--line);
-  color: var(--azul);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
@@ -306,6 +293,46 @@ main {
   background: #fff7e6 !important;
   outline: 2px solid var(--vermelho);
   outline-offset: -2px;
+}
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--line);
+  background: #f8fbff;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+.table-pagination {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.table-pagination button {
+  min-width: 34px;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--azul);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.table-pagination button:hover:not(:disabled) { background: #dbeafe; }
+.table-pagination button:disabled { cursor: default; opacity: 0.45; }
+.table-pagination .current-page {
+  min-width: 34px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--azul);
+  color: #fff;
+  font-weight: 800;
 }
 .focus-card {
   margin-top: 12px;
@@ -449,7 +476,7 @@ main {
 }
 .export-toast.show { opacity: 1; transform: translateY(0); }
 .comp-controls {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 .comp-controls select[multiple] {
   border: 1px solid #cbd5e1;
@@ -473,6 +500,29 @@ main {
   gap: 14px;
   margin-top: 14px;
 }
+.comp-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(160px, 220px));
+  justify-content: end;
+  gap: 10px;
+  margin-top: 10px;
+}
+.comp-actions > button,
+.comp-actions .btn-export-toggle {
+  width: 100%;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 10px 14px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.comp-actions > button {
+  border: 1px solid #cbd5e1;
+  background: var(--azul);
+  color: #fff;
+}
+.comp-actions > button:hover { background: var(--azul-escuro); }
 @media (max-width: 1100px) {
   .comp-grid { grid-template-columns: 1fr; }
   .export-group {
@@ -558,7 +608,6 @@ footer {
 footer a { color: #bfdbfe; }
 footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
 @media (max-width: 1100px) {
-  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .workspace { grid-template-columns: 1fr; }
   :root {
@@ -570,17 +619,20 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
   }
 }
 @media (max-width: 640px) {
-  .kpis, .controls { grid-template-columns: 1fr; }
+  .kpis { grid-auto-flow: row; grid-template-columns: 1fr; }
+  .controls, .comp-controls, .comp-actions { grid-template-columns: 1fr; }
+  .comp-actions { justify-content: stretch; }
+  .table-footer { align-items: flex-start; flex-direction: column; }
 }
 </style>
 </head>
 <body>
 <nav class="top">
-  <a href="index.html"><i class="fa-solid fa-house"></i> Portal</a>
-  <a href="dashboard_principal.html"><i class="fa-solid fa-chart-line"></i> Dashboard Principal</a>
-  <a href="analise_geografica.html"><i class="fa-solid fa-road"></i> Análise Geográfica</a>
-  <a href="RELATORIO_EXECUTIVO.html"><i class="fa-solid fa-file-lines"></i> Relatório</a>
-  <a href="GUIA_ACESSO.html"><i class="fa-solid fa-circle-question"></i> Guia</a>
+  <a href="./"><i class="fa-solid fa-house"></i> Portal</a>
+  <a href="dashboard_principal"><i class="fa-solid fa-chart-line"></i> Dashboard Principal</a>
+  <a href="analise_geografica"><i class="fa-solid fa-road"></i> Análise Geográfica</a>
+  <a href="RELATORIO_EXECUTIVO"><i class="fa-solid fa-file-lines"></i> Relatório</a>
+  <a href="GUIA_ACESSO"><i class="fa-solid fa-circle-question"></i> Guia</a>
 </nav>
 
 <header class="hero">
@@ -598,19 +650,11 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
 
   <section class="panel">
     <h2>Filtros analíticos</h2>
-    <div class="steps">
-      <span class="step">1. Período</span>
-      <span class="step">2. Indicador</span>
-      <span class="step">3. Tipo de evento</span>
-      <span class="step">4. Escala espacial</span>
-      <span class="step">5. Rodovia em foco</span>
-      <span class="step">6. Explorar mapa e ranking</span>
-    </div>
     <div class="controls controls-block">
-      <label>Período
+      <label>1. Período
         <select id="fltYear"></select>
       </label>
-      <label>Indicador
+      <label>2. Indicador
         <select id="fltMetric">
           <option value="sinistros">Sinistros</option>
           <option value="obitos">Óbitos</option>
@@ -618,25 +662,25 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
           <option value="indice_letalidade">Letalidade (%)</option>
         </select>
       </label>
-      <label>Tipo de evento
+      <label>3. Tipo de evento
         <select id="fltEventType"></select>
       </label>
-      <label>Escala espacial
+      <label>4. Unidade espacial
         <select id="fltSpatialLevel">
           <option value="rodovia" selected>Rodovia</option>
           <option value="trecho">Trecho</option>
           <option value="municipio">Município</option>
         </select>
       </label>
-      <label>Administração
+      <label>5. Administração
         <select id="fltAdm">
           <option value="ALL">Todas as administrações</option>
         </select>
       </label>
-      <label>Rodovia em foco
+      <label>6. Rodovia em foco
         <select id="fltRoad"></select>
       </label>
-      <label>Top N do ranking
+      <label>7. Top N do ranking
         <select id="fltTopN">
           <option>5</option>
           <option selected>8</option>
@@ -724,23 +768,21 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
       <label>Administrações (múltipla seleção)
         <select id="compAdms" multiple size="4"></select>
       </label>
-      <label>&nbsp;
-        <button id="btnCompReset" type="button">Limpar</button>
-      </label>
-      <label>&nbsp;
-        <div class="export-group" id="exportComp">
-          <button class="btn-export-toggle" type="button" onclick="toggleExportMenu('exportComp')"><i class="fa-solid fa-download"></i> Exportar</button>
-          <div class="export-menu" id="exportCompMenu" style="display:none">
-            <div class="export-section-label">Tabular</div>
-            <button onclick="exportData('comp','csv')">CSV</button>
-            <button onclick="exportData('comp','xlsx')">XLSX</button>
-            <button onclick="exportData('comp','txt')">TXT</button>
-            <div class="export-section-label">Geoespacial</div>
-            <button onclick="exportData('comp','shp')">SHP (zip)</button>
-            <button onclick="exportData('comp','gpkg')">GeoPackage</button>
-          </div>
+    </div>
+    <div class="comp-actions">
+      <button id="btnCompReset" type="button"><i class="fa-solid fa-rotate-left"></i> Limpar filtros</button>
+      <div class="export-group" id="exportComp">
+        <button class="btn-export-toggle" type="button" onclick="toggleExportMenu('exportComp')"><i class="fa-solid fa-download"></i> Exportar</button>
+        <div class="export-menu" id="exportCompMenu" style="display:none">
+          <div class="export-section-label">Tabular</div>
+          <button onclick="exportData('comp','csv')">CSV</button>
+          <button onclick="exportData('comp','xlsx')">XLSX</button>
+          <button onclick="exportData('comp','txt')">TXT</button>
+          <div class="export-section-label">Geoespacial</div>
+          <button onclick="exportData('comp','shp')">SHP (zip)</button>
+          <button onclick="exportData('comp','gpkg')">GeoPackage</button>
         </div>
-      </label>
+      </div>
     </div>
     <p class="detail-note" id="compMapNote" style="margin-top:8px;display:none"><i class="fa-solid fa-circle-info"></i> Mapa em modo comparativo — cada cor representa uma administração. Clique em <strong>Limpar</strong> para voltar ao modo de criticidade.</p>
 
@@ -1790,15 +1832,16 @@ function updateRank(rows) {
   const leftMargin = Math.min(260, Math.max(120, longestLabel * 7 + 24));
 
   Plotly.react('rankChart', traces, {
-    title: rankTitle,
+    title: { text: rankTitle, font: { size: 16, family: 'Inter, Segoe UI, Arial, sans-serif', color: '#0b3a70' } },
     height: rankHeight,
     margin: { l: leftMargin, r: 20, t: 70, b: 58 },
     paper_bgcolor: '#ffffff',
     plot_bgcolor: '#ffffff',
+    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12, color: '#334155' },
     barmode: 'overlay',
     showlegend: false,
-    xaxis: { gridcolor: '#e2e8f0', title: { text: xAxisTitle, standoff: 18 } },
-    yaxis: { gridcolor: '#ffffff', automargin: true, title: { text: '', standoff: 10 } }
+    xaxis: { gridcolor: '#e2e8f0', tickfont: { size: 12 }, title: { text: xAxisTitle, standoff: 18, font: { size: 13 } } },
+    yaxis: { gridcolor: '#ffffff', tickfont: { size: 12 }, automargin: true, title: { text: '', standoff: 10 } }
   }, { responsive: true, displaylogo: false });
 
   const rankEl = document.getElementById('rankChart');
@@ -1930,25 +1973,27 @@ function updateTimeline() {
     ? scopeMunicipalityRows().find((r) => r.CD_MUN === state.focusKey)?.NM_MUN
     : null;
   const roadLabelTL = focusedMunicipality || (state.road === 'ALL' ? entityLabelTL : state.road);
-  const timelineTitle = `Tendência temporal de ${metricNames[state.metric].toLowerCase()} — ${roadLabelTL}${eventSuffixTL}`;
+  const timelineTitle = `${metricNames[state.metric]} por ano — ${roadLabelTL}`;
 
   // Legenda abaixo do plot, com margem inferior generosa para acomodar
   // tick labels + titulo do eixo X + a propria legenda sem qualquer sobreposicao.
   const timelineLayout = {
-    title: timelineTitle,
+    title: { text: timelineTitle, font: { size: 16, family: 'Inter, Segoe UI, Arial, sans-serif', color: '#0b3a70' } },
     height: timeHeight,
     margin: { l: 60, r: 20, t: 56, b: 130 },
     paper_bgcolor: '#ffffff',
     plot_bgcolor: '#ffffff',
-    xaxis: { title: { text: 'Ano', standoff: 16 }, gridcolor: '#e2e8f0', automargin: false },
-    yaxis: { title: metricNames[state.metric], gridcolor: '#e2e8f0', automargin: true },
+    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12, color: '#334155' },
+    xaxis: { title: { text: 'Ano', standoff: 16, font: { size: 13 } }, tickfont: { size: 12 }, gridcolor: '#e2e8f0', automargin: false },
+    yaxis: { title: { text: metricNames[state.metric], font: { size: 13 } }, tickfont: { size: 12 }, gridcolor: '#e2e8f0', automargin: true },
     legend: {
       orientation: 'h',
       y: -0.38,
       yanchor: 'top',
       x: 0.5,
       xanchor: 'center',
-      bgcolor: 'rgba(255,255,255,0.85)'
+      bgcolor: 'rgba(255,255,255,0.85)',
+      font: { size: 12 }
     }
   };
 
@@ -2029,17 +2074,44 @@ function ensureMapLegendControl() {
   mapLegendControl.addTo(map);
 }
 
-function updateDetailTable(rows) {
+const TABLE_PAGE_SIZE = 15;
+
+function tableFooterHtml(scope, total, page, pageSize = TABLE_PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const first = total ? ((page - 1) * pageSize) + 1 : 0;
+  const last = total ? Math.min(page * pageSize, total) : 0;
+  return `<div class="table-footer">
+    <span>Exibindo ${first}–${last} de ${total} registros</span>
+    <div class="table-pagination" data-scope="${scope}">
+      <button type="button" data-page="${page - 1}" aria-label="Página anterior" ${page <= 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button>
+      <span class="current-page" aria-current="page">${page}</span>
+      <span>de ${totalPages}</span>
+      <button type="button" data-page="${page + 1}" aria-label="Próxima página" ${page >= totalPages ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button>
+    </div>
+  </div>`;
+}
+
+function wireTablePagination(host, handler) {
+  host.querySelectorAll('.table-pagination button:not(:disabled)').forEach((button) => {
+    button.addEventListener('click', () => handler(Number(button.dataset.page || 1)));
+  });
+}
+
+function updateDetailTable(rows, requestedPage = 1) {
   const host = document.getElementById('detailTable');
   if (!host) return;
-  const ranked = [...rows]
+  const rankedAll = [...rows]
     .sort((a, b) => metricValue(b, state.metric) - metricValue(a, state.metric))
     .slice(0, Number(state.topN || 8));
 
-  if (!ranked.length) {
+  if (!rankedAll.length) {
     host.innerHTML = '<div class="detail-note">Sem resultados para o recorte atual.</div>';
     return;
   }
+
+  const totalPages = Math.max(1, Math.ceil(rankedAll.length / TABLE_PAGE_SIZE));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const ranked = rankedAll.slice((page - 1) * TABLE_PAGE_SIZE, page * TABLE_PAGE_SIZE);
 
   if (state.spatialLevel === 'municipio') {
     const rowsHtml = ranked.map((item, idx) => {
@@ -2056,7 +2128,8 @@ function updateDetailTable(rows) {
       '<table>',
       '<thead><tr><th>Posição</th><th>Código IBGE</th><th>Município</th><th>Indicador</th><th>Sinistros</th><th>Óbitos</th><th>Vítimas graves</th><th>Tipo predominante</th></tr></thead>',
       `<tbody>${rowsHtml}</tbody>`,
-      '</table>'
+      '</table>',
+      tableFooterHtml('detail', rankedAll.length, page)
     ].join('');
     host.querySelectorAll('tbody tr').forEach((tr) => {
       tr.addEventListener('click', () => {
@@ -2064,6 +2137,7 @@ function updateDetailTable(rows) {
         if (key) setFocus(key);
       });
     });
+    wireTablePagination(host, (nextPage) => updateDetailTable(rows, nextPage));
     return;
   }
 
@@ -2101,7 +2175,8 @@ function updateDetailTable(rows) {
     '<table>',
     '<thead><tr><th>Posição</th><th>Rodovia</th><th>Subtrecho</th><th>Indicador</th><th>Sinistros</th><th>Óbitos</th><th>Tipo predominante</th></tr></thead>',
     `<tbody>${rowsHtml}</tbody>`,
-    '</table>'
+    '</table>',
+    tableFooterHtml('detail', rankedAll.length, page)
   ].join('');
 
   host.querySelectorAll('tbody tr').forEach((tr) => {
@@ -2110,6 +2185,7 @@ function updateDetailTable(rows) {
       if (key) setFocus(key);
     });
   });
+  wireTablePagination(host, (nextPage) => updateDetailTable(rows, nextPage));
 }
 
 function setStatus(text, isError) {
@@ -2424,6 +2500,7 @@ function initCompFilters() {
   const admSel = document.getElementById('compAdms');
   const adms = [...new Set(compAdmByTipo.map((r) => String(r.administracao || '')).filter(Boolean))].sort();
   admSel.innerHTML = adms.map((a) => `<option value="${a}">${a}</option>`).join('');
+  renderComp();
 }
 
 function compScopeRows() {
@@ -2491,8 +2568,9 @@ function renderCompBar(rows) {
     margin: { l: 40, r: 20, t: 24, b: 60 },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
-    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12 },
-    yaxis: { title: metricLabel[m] },
+    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12, color: '#334155' },
+    xaxis: { tickfont: { size: 12 } },
+    yaxis: { tickfont: { size: 12 }, title: { text: metricLabel[m], font: { size: 13 } } },
     showlegend: false
   }, { responsive: true, displaylogo: false });
 }
@@ -2516,31 +2594,38 @@ function renderCompTime(rows) {
     margin: { l: 40, r: 20, t: 24, b: 40 },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
-    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12 },
-    yaxis: { title: metricLabel[m] },
-    legend: { orientation: 'h', y: -0.2 }
+    font: { family: 'Inter, Segoe UI, Arial, sans-serif', size: 12, color: '#334155' },
+    xaxis: { tickfont: { size: 12 } },
+    yaxis: { tickfont: { size: 12 }, title: { text: metricLabel[m], font: { size: 13 } } },
+    legend: { orientation: 'h', y: -0.2, font: { size: 12 } }
   }, { responsive: true, displaylogo: false });
 }
 
-function renderCompTrechos() {
+function renderCompTrechos(requestedPage = 1) {
   const m = compState.metric;
   const admsAtivas = compState.adms.length
     ? compState.adms
     : [...new Set(compAdmTrechos.map((r) => String(r.administracao || '').toUpperCase()).filter(Boolean))];
   let rows = compAdmTrechos.filter((r) => admsAtivas.includes(String(r.administracao || '').toUpperCase()));
-  if (compState.adms.length === 0) rows = rows.slice(0, 20);
-  rows = [...rows].sort((a, b) => Number(b[m] || 0) - Number(a[m] || 0)).slice(0, 30);
-  if (!rows.length) { document.getElementById('compTrechoTable').innerHTML = ''; return; }
+  rows = [...rows].sort((a, b) => Number(b[m] || 0) - Number(a[m] || 0));
+  const host = document.getElementById('compTrechoTable');
+  if (!rows.length) { host.innerHTML = '<div class="detail-note">Sem resultados para o recorte comparativo.</div>'; return; }
+  const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const visibleRows = rows.slice((page - 1) * TABLE_PAGE_SIZE, page * TABLE_PAGE_SIZE);
   const cols = ['administracao', 'Rodovia', 'trecho_id', 'sinistros', 'obitos', 'sinistros_por_km', 'indice_letalidade'];
   const heads = ['Administração', 'Rodovia', 'Trecho', 'Sinistros', 'Óbitos', 'Sin./km', 'Letalidade (%)'];
   const digs  = [null, null, null, 0, 0, 2, 2];
   const html = `<table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>
-    ${rows.map((r) => `<tr style="border-left:4px solid ${admColor(r.administracao)}">${cols.map((c, i) => {
+    ${visibleRows.map((r) => `<tr style="border-left:4px solid ${admColor(r.administracao)}">${cols.map((c, i) => {
       const v = r[c];
       return `<td>${digs[i] !== null ? fmt(Number(v || 0), digs[i]) : (v || '-')}</td>`;
     }).join('')}</tr>`).join('')}
-  </tbody></table><div class="detail-note">Top 30 trechos no recorte · ordenado por ${metricLabel[m]}</div>`;
-  document.getElementById('compTrechoTable').innerHTML = html;
+  </tbody></table>
+  <div class="detail-note">Trechos ordenados por ${metricLabel[m]}.</div>
+  ${tableFooterHtml('comparison', rows.length, page)}`;
+  host.innerHTML = html;
+  wireTablePagination(host, (nextPage) => renderCompTrechos(nextPage));
 }
 
 function applyCompMapMode(active) {
