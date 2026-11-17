@@ -74,22 +74,22 @@ main {
   margin: 0 5%;
   padding: 18px 0 28px;
   display: grid;
-  gap: 16px;
+  gap: 24px;
 }
 .panel {
   background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
   border: 1px solid var(--line);
   border-radius: 16px;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-  padding: 18px;
+  padding: 22px;
 }
 .panel h2 {
-  margin: 0 0 10px;
+  margin: 0 0 14px;
   color: var(--azul);
   font-size: 1.1rem;
 }
 .sub {
-  margin: 0 0 12px;
+  margin: 0 0 18px;
   color: var(--muted);
 }
 .kpis {
@@ -97,16 +97,19 @@ main {
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
   gap: 12px;
+  margin-bottom: 18px;
 }
 .kpi {
-  border: 1px solid var(--line);
+  border: 2px solid #116593;
   border-radius: 12px;
-  padding: 12px;
-  background: var(--card);
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff 0%, #eef7fc 100%);
+  box-shadow: 0 5px 14px rgba(17, 101, 147, 0.12);
 }
 .kpi .label {
-  color: var(--muted);
-  font-size: 0.84rem;
+  color: #0b3a70;
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 .kpi .value {
   margin-top: 6px;
@@ -114,7 +117,8 @@ main {
   font-weight: 800;
   color: var(--azul);
 }
-.kpi.alert .value { color: var(--vermelho); }
+.kpi.alert { border-color: #c62828; background: linear-gradient(180deg, #ffffff 0%, #fff2f1 100%); }
+.kpi.alert .label, .kpi.alert .value { color: #b91c1c; }
 .insight {
   border-left: 4px solid var(--azul);
   background: #eef4ff;
@@ -128,7 +132,7 @@ main {
   gap: 10px;
 }
 .controls-block {
-  margin-top: 12px;
+  margin-top: 0;
 }
 .controls label {
   display: flex;
@@ -137,6 +141,19 @@ main {
   color: var(--azul);
   font-weight: 700;
   font-size: 0.9rem;
+}
+.administration-field {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.administration-field legend {
+  margin: 0 0 6px;
+  padding: 0;
+  color: var(--azul);
+  font-size: 0.9rem;
+  font-weight: 700;
 }
 .controls select, .controls button {
   border: 1px solid #cbd5e1;
@@ -303,7 +320,8 @@ main {
   border-top: 1px solid var(--line);
   background: #f8fbff;
   color: var(--muted);
-  font-size: 0.84rem;
+  font-size: 0.72rem;
+  font-weight: 600;
 }
 .table-pagination {
   display: inline-flex;
@@ -311,28 +329,28 @@ main {
   gap: 6px;
 }
 .table-pagination button {
-  min-width: 34px;
-  min-height: 34px;
-  border: 1px solid #cbd5e1;
-  border-radius: 8px;
+  width: 26px;
+  height: 26px;
+  border: 1.5px solid #c5ccd6;
+  border-radius: 6px;
   background: #fff;
   color: var(--azul);
   font: inherit;
-  font-weight: 800;
+  font-size: 0.68rem;
   cursor: pointer;
 }
 .table-pagination button:hover:not(:disabled) { background: #dbeafe; }
 .table-pagination button:disabled { cursor: default; opacity: 0.45; }
-.table-pagination .current-page {
-  min-width: 34px;
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: var(--azul);
-  color: #fff;
-  font-weight: 800;
+.table-pagination .page-indicator {
+  color: var(--ink);
+  padding: 0 8px;
+  white-space: nowrap;
+  font-weight: 700;
+}
+.table-page-size {
+  color: var(--muted);
+  white-space: nowrap;
+  text-align: right;
 }
 .focus-card {
   margin-top: 12px;
@@ -500,29 +518,67 @@ main {
   gap: 14px;
   margin-top: 14px;
 }
+.filter-actions,
 .comp-actions {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(160px, 220px));
-  justify-content: end;
-  gap: 10px;
-  margin-top: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 48px;
+  margin-top: 14px;
 }
-.comp-actions > button,
-.comp-actions .btn-export-toggle {
-  width: 100%;
-  min-height: 42px;
+.action-icon-button {
+  width: 38px !important;
+  height: 38px !important;
+  min-width: 38px;
+  padding: 0 !important;
+  border: 1.5px solid #c5ccd6 !important;
+  border-radius: 50% !important;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff !important;
+  color: var(--azul) !important;
+  box-shadow: 0 3px 9px rgba(15, 23, 42, 0.12);
+  cursor: pointer;
+  font-size: 0.9rem !important;
+  transition: background .16s ease, color .16s ease, border-color .16s ease, transform .16s ease;
+}
+.action-icon-button:hover {
+  background: var(--azul) !important;
+  border-color: var(--azul) !important;
+  color: #fff !important;
+  transform: translateY(-1px);
+}
+.action-icon-button--export { color: #b91c1c !important; }
+.action-icon-button--export:hover { background: #b91c1c !important; border-color: #b91c1c !important; }
+.filter-actions .export-group,
+.comp-actions .export-group { width: auto; }
+.administration-check-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  min-height: 74px;
+  padding: 9px;
+  border: 1px solid #cbd5e1;
   border-radius: 10px;
-  padding: 10px 14px;
-  font: inherit;
-  font-weight: 800;
+  background: #fff;
+}
+.administration-check {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px !important;
+  padding: 7px 8px;
+  border: 1px solid #dbe3ee;
+  border-radius: 8px;
+  background: #f8fbff;
+  color: var(--ink) !important;
+  font-size: 0.8rem !important;
+  font-weight: 700 !important;
   cursor: pointer;
 }
-.comp-actions > button {
-  border: 1px solid #cbd5e1;
-  background: var(--azul);
-  color: #fff;
-}
-.comp-actions > button:hover { background: var(--azul-escuro); }
+.administration-check input { width: 15px; height: 15px; accent-color: var(--azul); }
 @media (max-width: 1100px) {
   .comp-grid { grid-template-columns: 1fr; }
   .export-group {
@@ -620,8 +676,8 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
 }
 @media (max-width: 640px) {
   .kpis { grid-auto-flow: row; grid-template-columns: 1fr; }
-  .controls, .comp-controls, .comp-actions { grid-template-columns: 1fr; }
-  .comp-actions { justify-content: stretch; }
+  .controls, .comp-controls { grid-template-columns: 1fr; }
+  .administration-check-grid { grid-template-columns: 1fr; }
   .table-footer { align-items: flex-start; flex-direction: column; }
 }
 </style>
@@ -688,23 +744,21 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
           <option>12</option>
         </select>
       </label>
-      <label>&nbsp;
-        <button id="btnReset" type="button">Limpar filtros</button>
-      </label>
-      <label>&nbsp;
-        <div class="export-group" id="exportMain">
-          <button class="btn-export-toggle" type="button" onclick="toggleExportMenu('exportMain')"><i class="fa-solid fa-download"></i> Exportar</button>
-          <div class="export-menu" id="exportMainMenu" style="display:none">
-            <div class="export-section-label">Tabular</div>
-            <button onclick="exportData('main','csv')">CSV</button>
-            <button onclick="exportData('main','xlsx')">XLSX</button>
-            <button onclick="exportData('main','txt')">TXT</button>
-            <div class="export-section-label">Geoespacial</div>
-            <button onclick="exportData('main','shp')">SHP (zip)</button>
-            <button onclick="exportData('main','gpkg')">GeoPackage</button>
-          </div>
+    </div>
+    <div class="filter-actions" aria-label="Ações dos filtros analíticos">
+      <button id="btnReset" class="action-icon-button" type="button" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa-solid fa-rotate-left"></i></button>
+      <div class="export-group" id="exportMain">
+        <button class="btn-export-toggle action-icon-button action-icon-button--export" type="button" onclick="toggleExportMenu('exportMain')" title="Exportar" aria-label="Exportar"><i class="fa-solid fa-download"></i></button>
+        <div class="export-menu" id="exportMainMenu" style="display:none">
+          <div class="export-section-label">Tabular</div>
+          <button onclick="exportData('main','csv')">CSV</button>
+          <button onclick="exportData('main','xlsx')">XLSX</button>
+          <button onclick="exportData('main','txt')">TXT</button>
+          <div class="export-section-label">Geoespacial</div>
+          <button onclick="exportData('main','shp')">SHP (zip)</button>
+          <button onclick="exportData('main','gpkg')">GeoPackage</button>
         </div>
-      </label>
+      </div>
     </div>
   </section>
 
@@ -765,14 +819,15 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
           <option value="ALL">Todos os períodos</option>
         </select>
       </label>
-      <label>Administrações (múltipla seleção)
-        <select id="compAdms" multiple size="4"></select>
-      </label>
+      <fieldset class="administration-field">
+        <legend>Administrações (múltipla seleção)</legend>
+        <div id="compAdms" class="administration-check-grid" role="group" aria-label="Administrações"></div>
+      </fieldset>
     </div>
     <div class="comp-actions">
-      <button id="btnCompReset" type="button"><i class="fa-solid fa-rotate-left"></i> Limpar filtros</button>
+      <button id="btnCompReset" class="action-icon-button" type="button" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa-solid fa-rotate-left"></i></button>
       <div class="export-group" id="exportComp">
-        <button class="btn-export-toggle" type="button" onclick="toggleExportMenu('exportComp')"><i class="fa-solid fa-download"></i> Exportar</button>
+        <button class="btn-export-toggle action-icon-button action-icon-button--export" type="button" onclick="toggleExportMenu('exportComp')" title="Exportar" aria-label="Exportar"><i class="fa-solid fa-download"></i></button>
         <div class="export-menu" id="exportCompMenu" style="display:none">
           <div class="export-section-label">Tabular</div>
           <button onclick="exportData('comp','csv')">CSV</button>
@@ -905,6 +960,12 @@ let mapLegendControl;
 let lastBreakdownByRoad = {};
 let lastBreakdownBySegment = {};
 let lastBreakdownByMunicipality = {};
+let breakdownCacheKey = '';
+let breakdownCacheValue = null;
+let renderFrame = null;
+let compRenderFrame = null;
+let mapCanvasRenderer = null;
+let activeMapTooltipContext = null;
 let lastRankYKeys = [];
 // fitBounds e custoso e quebra a navegacao do usuario; deve ocorrer apenas na
 // carga inicial e em reset explicito, nunca a cada render.
@@ -1113,6 +1174,14 @@ function buildBreakdownMaps() {
   });
 
   return { byRoad, bySegment, byMunicipality };
+}
+
+function getBreakdownMaps() {
+  const key = [state.year, state.road, state.adm].join('|');
+  if (key === breakdownCacheKey && breakdownCacheValue) return breakdownCacheValue;
+  breakdownCacheKey = key;
+  breakdownCacheValue = buildBreakdownMaps();
+  return breakdownCacheValue;
 }
 
 function breakdownSummary(breakdown) {
@@ -1524,10 +1593,54 @@ function municipalityKeyFromFeature(feature) {
   return String(feature?.properties?.CD_MUN || '');
 }
 
+function municipalityTooltipHtml(feature, lookup) {
+  const props = feature?.properties || {};
+  const code = municipalityKeyFromFeature(feature);
+  const current = lookup[code] || {};
+  const breakdown = lastBreakdownByMunicipality[code];
+  return `<div style="min-width:220px">` +
+    `<div style="font-weight:700;color:#0b3a70">${props.NM_MUN || '-'}</div>` +
+    `<div>Código IBGE: <b>${code || '-'}</b></div>` +
+    `<hr style="margin:4px 0;border:none;border-top:1px solid #e5e7eb">` +
+    `<div>Sinistros: <b>${fmt(current.sinistros || 0)}</b></div>` +
+    `<div>Óbitos: <b>${fmt(current.obitos || 0)}</b></div>` +
+    `<div>Vítimas graves: <b>${fmt(current.graves || 0)}</b></div>` +
+    `<div>Tipo predominante: <b>${predominantEventLabel(breakdown)}</b></div>` +
+    `</div>`;
+}
+
+function roadTooltipHtml(feature, lookup, maxMetric, metricLabel, digits, isTrecho) {
+  const props = feature?.properties || {};
+  const road = props.Rodovia || '-';
+  const segKey = segmentKeyFromFeature(feature);
+  const current = isTrecho ? lookup[segKey] : lookup[road];
+  const value = Number(current?.metric || 0);
+  const sev = classify(value, maxMetric);
+  const breakdown = isTrecho ? lastBreakdownBySegment[segKey] : lastBreakdownByRoad[road];
+  const kmI = Number(props.KmInicial);
+  const kmF = Number(props.KmFinal);
+  const kmTxt = (Number.isFinite(kmI) && Number.isFinite(kmF))
+    ? `km ${fmt(kmI, 2)} – ${fmt(kmF, 2)}`
+    : (props.Subtrecho || '-');
+  return `<div style="min-width:240px">` +
+    `<div style="font-weight:700;color:#0b3a70">${road}</div>` +
+    `<div>Subtrecho: <b>${kmTxt}</b></div>` +
+    `<div>Município: <b>${props.Municipio || '-'}</b></div>` +
+    `<hr style="margin:4px 0;border:none;border-top:1px solid #e5e7eb">` +
+    `<div>${metricLabel}: <b>${fmt(value, digits)}</b> (${sev.label})</div>` +
+    `<div>Sinistros: <b>${fmt(Number(props.sinistros || 0))}</b></div>` +
+    `<div>Óbitos: <b>${fmt(Number(props.obitos || 0))}</b></div>` +
+    `<div>Sinistros por km: <b>${fmt(Number(props.sinistros_por_km || 0), 2)}</b></div>` +
+    `<div>Letalidade: <b>${fmt(Number(props.indice_letalidade || 0), 2)}%</b></div>` +
+    `<div>Tipo predominante: <b>${predominantEventLabel(breakdown)}</b></div>` +
+    `<div style="margin-top:4px;color:#475569;font-size:.85em">Composição: ${breakdownSummary(breakdown)}</div>` +
+    `</div>`;
+}
+
 function updateMap() {
   const metricLabel = metricNames[state.metric];
   const digits = metricDigits(state.metric);
-  const breakdownMaps = buildBreakdownMaps();
+  const breakdownMaps = getBreakdownMaps();
   lastBreakdownByRoad = breakdownMaps.byRoad;
   lastBreakdownBySegment = breakdownMaps.bySegment;
   lastBreakdownByMunicipality = breakdownMaps.byMunicipality;
@@ -1536,8 +1649,25 @@ function updateMap() {
     const rows = scopeMunicipalityRows();
     const lookup = Object.fromEntries(rows.map((r) => [r.CD_MUN, r]));
     const maxMetric = Math.max(0, ...rows.map((r) => metricValue(r, state.metric)));
-    if (roadLayer) map.removeLayer(roadLayer);
-    roadLayer = L.geoJSON(municipios, {
+    activeMapTooltipContext = { level: 'municipio', lookup };
+    if (roadLayer && roadLayer._sigmaLevel === 'municipio') {
+      roadLayer.eachLayer((layer) => {
+        const code = municipalityKeyFromFeature(layer.feature);
+        const current = lookup[code];
+        const severity = classify(metricValue(current, state.metric), maxMetric);
+        const focused = state.focusKey === code;
+        layer.setStyle({
+          color: focused ? '#0b3a70' : '#ffffff',
+          weight: focused ? 3 : 0.8,
+          fillColor: severity.color,
+          fillOpacity: current ? 0.76 : 0.22,
+          opacity: 1
+        });
+      });
+    } else {
+      if (roadLayer) map.removeLayer(roadLayer);
+      roadLayer = L.geoJSON(municipios, {
+      renderer: mapCanvasRenderer,
       style: (feature) => {
         const code = municipalityKeyFromFeature(feature);
         const current = lookup[code];
@@ -1556,21 +1686,16 @@ function updateMap() {
         const code = municipalityKeyFromFeature(feature);
         const current = lookup[code] || {};
         const breakdown = lastBreakdownByMunicipality[code];
-        layer.bindTooltip(
-          `<div style="min-width:220px">` +
-          `<div style="font-weight:700;color:#0b3a70">${props.NM_MUN || '-'}</div>` +
-          `<div>Código IBGE: <b>${code || '-'}</b></div>` +
-          `<hr style="margin:4px 0;border:none;border-top:1px solid #e5e7eb">` +
-          `<div>Sinistros: <b>${fmt(current.sinistros || 0)}</b></div>` +
-          `<div>Óbitos: <b>${fmt(current.obitos || 0)}</b></div>` +
-          `<div>Vítimas graves: <b>${fmt(current.graves || 0)}</b></div>` +
-          `<div>Tipo predominante: <b>${predominantEventLabel(breakdown)}</b></div>` +
-          `</div>`,
-          { sticky: true, direction: 'top', opacity: 0.96 }
-        );
+        layer.bindTooltip(municipalityTooltipHtml(feature, lookup), { sticky: true, direction: 'top', opacity: 0.96 });
+        layer.on('tooltipopen', () => {
+          const context = activeMapTooltipContext;
+          if (context?.level === 'municipio') layer.setTooltipContent(municipalityTooltipHtml(feature, context.lookup));
+        });
         layer.on('click', () => setFocus(code));
       }
-    }).addTo(map);
+      }).addTo(map);
+      roadLayer._sigmaLevel = 'municipio';
+    }
 
     if (pendingFit) {
       const bounds = roadLayer.getBounds?.();
@@ -1625,10 +1750,25 @@ function updateMap() {
   }
 
   const maxMetric = Math.max(0, ...Object.values(lookup).map((v) => Number(v.metric || 0)));
+  activeMapTooltipContext = { level: isTrecho ? 'trecho' : 'rodovia', lookup, maxMetric, metricLabel, digits, isTrecho };
 
-  if (roadLayer) map.removeLayer(roadLayer);
-
-  roadLayer = L.geoJSON(malha, {
+  const layerLevel = isTrecho ? 'trecho' : 'rodovia';
+  if (roadLayer && roadLayer._sigmaLevel === layerLevel) {
+    roadLayer.eachLayer((layer) => {
+      const feature = layer.feature;
+      const road = feature?.properties?.Rodovia;
+      const segKey = segmentKeyFromFeature(feature);
+      const current = isTrecho ? lookup[segKey] : lookup[road];
+      const sev = classify(Number(current?.metric || 0), maxMetric);
+      const focused = state.focusKey
+        ? (isTrecho ? segKey === state.focusKey : road === state.focusKey)
+        : (state.road !== 'ALL' && road === state.road);
+      layer.setStyle({ color: sev.color, weight: focused ? 6.5 : 2.6, opacity: focused ? 1 : 0.85 });
+    });
+  } else {
+    if (roadLayer) map.removeLayer(roadLayer);
+    roadLayer = L.geoJSON(malha, {
+    renderer: mapCanvasRenderer,
     style: (feature) => {
       const road = feature?.properties?.Rodovia;
       const segKey = segmentKeyFromFeature(feature);
@@ -1670,28 +1810,21 @@ function updateMap() {
       const tipTxt = breakdownSummary(breakdown);
       // Tooltip aparece no hover (sticky acompanha o mouse). Popup do clique
       // foi removido para nao competir; o clique agora apenas seta foco.
-      layer.bindTooltip(
-        `<div style="min-width:240px">` +
-        `<div style="font-weight:700;color:#0b3a70">${road}</div>` +
-        `<div>Subtrecho: <b>${kmTxt}</b></div>` +
-        `<div>Município: <b>${muni}</b></div>` +
-        `<hr style="margin:4px 0;border:none;border-top:1px solid #e5e7eb">` +
-        `<div>${metricLabel}: <b>${fmt(value, digits)}</b> (${sev.label})</div>` +
-        `<div>Sinistros: <b>${fmt(segSin)}</b></div>` +
-        `<div>Óbitos: <b>${fmt(segObi)}</b></div>` +
-        `<div>Sinistros por km: <b>${fmt(segSpk, 2)}</b></div>` +
-        `<div>Letalidade: <b>${fmt(segLet, 2)}%</b></div>` +
-        `<div>Tipo predominante: <b>${pred}</b></div>` +
-        `<div style="margin-top:4px;color:#475569;font-size:.85em">Composição: ${tipTxt}</div>` +
-        `</div>`,
-        { sticky: true, direction: 'top', opacity: 0.96 }
-      );
+      layer.bindTooltip(roadTooltipHtml(feature, lookup, maxMetric, metricLabel, digits, isTrecho), { sticky: true, direction: 'top', opacity: 0.96 });
+      layer.on('tooltipopen', () => {
+        const context = activeMapTooltipContext;
+        if (context?.level === layerLevel) {
+          layer.setTooltipContent(roadTooltipHtml(feature, context.lookup, context.maxMetric, context.metricLabel, context.digits, context.isTrecho));
+        }
+      });
       layer.on('click', () => {
         const focusKey = state.spatialLevel === 'trecho' ? segKey : road;
         if (focusKey) setFocus(focusKey);
       });
-    }
-  }).addTo(map);
+      }
+    }).addTo(map);
+    roadLayer._sigmaLevel = layerLevel;
+  }
 
   // fitBounds apenas na carga inicial ou em reset explicito. Em re-renderizacoes
   // por mudanca de filtro mantemos o zoom/pan que o usuario ajustou.
@@ -2081,13 +2214,15 @@ function tableFooterHtml(scope, total, page, pageSize = TABLE_PAGE_SIZE) {
   const first = total ? ((page - 1) * pageSize) + 1 : 0;
   const last = total ? Math.min(page * pageSize, total) : 0;
   return `<div class="table-footer">
-    <span>Exibindo ${first}–${last} de ${total} registros</span>
+    <span>${first}–${last} de ${total}</span>
     <div class="table-pagination" data-scope="${scope}">
-      <button type="button" data-page="${page - 1}" aria-label="Página anterior" ${page <= 1 ? 'disabled' : ''}><i class="fa-solid fa-chevron-left"></i></button>
-      <span class="current-page" aria-current="page">${page}</span>
-      <span>de ${totalPages}</span>
+      <button type="button" data-page="1" aria-label="Primeira página" title="Primeira página" ${page <= 1 ? 'disabled' : ''}><i class="fa-solid fa-angles-left"></i></button>
+      <button type="button" data-page="${page - 1}" aria-label="Página anterior" title="Página anterior" ${page <= 1 ? 'disabled' : ''}><i class="fa-solid fa-angle-left"></i></button>
+      <span class="page-indicator" aria-current="page">Página ${page} de ${totalPages}</span>
       <button type="button" data-page="${page + 1}" aria-label="Próxima página" ${page >= totalPages ? 'disabled' : ''}><i class="fa-solid fa-chevron-right"></i></button>
+      <button type="button" data-page="${totalPages}" aria-label="Última página" title="Última página" ${page >= totalPages ? 'disabled' : ''}><i class="fa-solid fa-angles-right"></i></button>
     </div>
+    <span class="table-page-size">15 por página</span>
   </div>`;
 }
 
@@ -2332,7 +2467,7 @@ function refreshPlotSizes() {
   if (time) Plotly.Plots.resize(time);
 }
 
-function render() {
+function renderNow() {
   const rows = currentRowsForSpatialLevel();
   updateKpis(rows);
   updateMap();
@@ -2340,8 +2475,16 @@ function render() {
   updateTimeline();
   updateDetailTable(rows);
   updateFocusCard();
-  refreshPlotSizes();
   setStatus('Painel atualizado com sucesso.', false);
+}
+
+function render() {
+  setStatus('Atualizando painel...', false);
+  if (renderFrame !== null) return;
+  renderFrame = requestAnimationFrame(() => {
+    renderFrame = null;
+    renderNow();
+  });
 }
 
 function wireEvents() {
@@ -2394,7 +2537,10 @@ function wireEvents() {
 
   document.getElementById('fltTopN').addEventListener('change', (ev) => {
     state.topN = Number(ev.target.value);
-    render();
+    const rows = currentRowsForSpatialLevel();
+    updateRank(rows);
+    updateDetailTable(rows);
+    setStatus('Ranking e tabela atualizados.', false);
   });
 
   document.getElementById('btnReset').addEventListener('click', () => {
@@ -2425,7 +2571,8 @@ async function init() {
   try {
     setStatus('Carregando base geoespacial...', false);
 
-    map = L.map('map', { zoomControl: true, dragging: false }).setView([-22.5, -48.5], 7);
+    mapCanvasRenderer = L.canvas({ padding: 0.35, tolerance: 5 });
+    map = L.map('map', { zoomControl: true, dragging: false, preferCanvas: true, renderer: mapCanvasRenderer }).setView([-22.5, -48.5], 7);
     L.maplibreGL({ style: 'https://tiles.openfreemap.org/styles/positron', interactive: false, attributionControl: false }).addTo(map);
 
     // Pan apenas com o botao do meio (roda) pressionado. O ponteiro padrao na
@@ -2499,7 +2646,7 @@ function initCompFilters() {
 
   const admSel = document.getElementById('compAdms');
   const adms = [...new Set(compAdmByTipo.map((r) => String(r.administracao || '')).filter(Boolean))].sort();
-  admSel.innerHTML = adms.map((a) => `<option value="${a}">${a}</option>`).join('');
+  admSel.innerHTML = adms.map((a) => `<label class="administration-check"><input type="checkbox" name="compAdm" value="${a}"><span>${a}</span></label>`).join('');
   renderComp();
 }
 
@@ -2656,7 +2803,7 @@ function applyCompMapMode(active) {
   });
 }
 
-function renderComp() {
+function renderCompNow() {
   if (!compAdmLoaded) return;
   const rows = compScopeRows();
   const timeRows = compTimeRows();
@@ -2664,6 +2811,14 @@ function renderComp() {
   renderCompTime(timeRows);
   renderCompTrechos();
   applyCompMapMode(compState.adms.length > 0 || compState.eventType !== 'ALL' || compState.year !== 'ALL');
+}
+
+function renderComp() {
+  if (!compAdmLoaded || compRenderFrame !== null) return;
+  compRenderFrame = requestAnimationFrame(() => {
+    compRenderFrame = null;
+    renderCompNow();
+  });
 }
 
 function wireCompEvents() {
@@ -2680,8 +2835,8 @@ function wireCompEvents() {
     renderComp();
   });
   document.getElementById('compAdms').addEventListener('change', () => {
-    const sel = document.getElementById('compAdms');
-    compState.adms = [...sel.selectedOptions].map((o) => o.value.toUpperCase());
+    compState.adms = [...document.querySelectorAll('#compAdms input[type="checkbox"]:checked')]
+      .map((input) => input.value.toUpperCase());
     renderComp();
   });
   document.getElementById('btnCompReset').addEventListener('click', () => {
@@ -2692,7 +2847,7 @@ function wireCompEvents() {
     document.getElementById('compMetric').value = 'sinistros';
     document.getElementById('compEventType').value = 'ALL';
     document.getElementById('compYear').value = 'ALL';
-    [...document.getElementById('compAdms').options].forEach((o) => { o.selected = false; });
+    document.querySelectorAll('#compAdms input[type="checkbox"]').forEach((input) => { input.checked = false; });
     applyCompMapMode(false);
     renderComp();
   });
