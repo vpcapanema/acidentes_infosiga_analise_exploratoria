@@ -11,9 +11,14 @@
 :root{--azul:#0e4d92;--vermelho:#d52b1e;--amarelo:#f7b500;--verde:#2e8b57;--bg:#f3f4f6;--ink:#1f2937;--muted:#6b7280;}
 *{box-sizing:border-box}
 body{margin:0;font-family:'Inter',Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
-header.hero{background:linear-gradient(135deg,#0e4d92 0%,#1e40af 60%,#d52b1e 140%);color:white;padding:48px 24px;text-align:center}
-header.hero h1{margin:0 0 8px;font-size:2.2em;letter-spacing:.5px}
-header.hero p{margin:4px 0;opacity:.95}
+header.hero{width:90%;max-width:1440px;margin:24px auto 0;background:linear-gradient(135deg,#003b5a 0%,#1c3d59 60%,#116593 100%);color:white;padding:48px 32px;text-align:center;border-radius:16px;box-shadow:0 12px 28px rgba(28,61,89,.22);position:relative;overflow:hidden}
+header.hero::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 70% 40%,rgba(62,194,110,.12) 0%,transparent 60%);pointer-events:none}
+header.hero>*{position:relative}
+header.hero h1{margin:0 0 8px;font-size:2.2em;letter-spacing:.5px;color:#fff}
+header.hero p{margin:4px 0;opacity:.82;color:#fff}
+.page-hero__icon{width:64px;height:64px;background:rgba(255,255,255,.12);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px}
+.page-hero__icon svg{width:34px;height:34px;fill:#3ec26e}
+.page-hero__badge{display:inline-flex;align-items:center;gap:6px;margin-top:16px;background:rgba(62,194,110,.18);border:1px solid rgba(62,194,110,.4);color:#3ec26e;border-radius:100px;padding:4px 14px;font-size:.9rem;font-weight:600}
 nav.top{background:#0b3a70;padding:10px 24px;display:flex;gap:12px;flex-wrap:wrap;justify-content:center;position:sticky;top:0;z-index:10}
 nav.top a{color:#fff;text-decoration:none;padding:6px 14px;border-radius:6px;font-weight:500;font-size:.95em}
 nav.top a:hover{background:#d52b1e}
@@ -140,9 +145,11 @@ footer a{color:#fff;text-decoration:none}
 
 
 <header class="hero">
+  <div class="page-hero__icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M20.5 3l-.16.03L15 5.1 9 3 3.36 4.9c-.21.07-.36.25-.36.48V20.5c0 .28.22.5.5.5l.16-.03L9 18.9l6 2.1 5.64-1.9c.21-.07.36-.25.36-.48V3.5c0-.28-.22-.5-.5-.5zM15 19l-6-2.11V5l6 2.11V19z"/></svg></div>
   <h1>Análise de Acidentes Rodoviários — Infosiga SP</h1>
   <p>Análise Exploratória Completa — Estado de São Paulo · 2014 – 2026</p>
   <p style="font-size:.9em;opacity:.85">Base oficial Detran SP · Malha Rodoviária DER/SP</p>
+  <div class="page-hero__badge">2014–2026 · Dados consolidados</div>
 </header>
 <main>
 
