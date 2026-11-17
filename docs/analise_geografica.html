@@ -495,6 +495,31 @@ main {
 .export-toast.show { opacity: 1; transform: translateY(0); }
 .comp-controls {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
+}
+.comp-filter-field,
+.administration-field {
+  min-width: 0;
+  min-height: 118px;
+  padding: 12px;
+  border: 1px solid #dbe3ee;
+  border-radius: 12px;
+  background: #f8fbff;
+  box-sizing: border-box;
+}
+.comp-filter-field {
+  display: flex !important;
+  flex-direction: column;
+  justify-content: flex-start;
+  gap: 10px !important;
+}
+.comp-filter-field select { margin-top: auto; margin-bottom: auto; }
+.administration-field { margin: 0; }
+.administration-field legend {
+  padding: 0 5px;
+  color: var(--ink);
+  font-size: .8rem;
+  font-weight: 800;
 }
 .comp-controls select[multiple] {
   border: 1px solid #cbd5e1;
@@ -558,7 +583,7 @@ main {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
-  min-height: 74px;
+  min-height: 78px;
   padding: 9px;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
@@ -579,6 +604,24 @@ main {
   cursor: pointer;
 }
 .administration-check input { width: 15px; height: 15px; accent-color: var(--azul); }
+.table-sort-button {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.table-sort-button i { width: 12px; flex: 0 0 12px; opacity: .7; }
+.table-sort-button.is-active i { opacity: 1; color: #fbbf24; }
+.table-sort-button:focus-visible { outline: 2px solid #fbbf24; outline-offset: 4px; border-radius: 2px; }
 @media (max-width: 1100px) {
   .comp-grid { grid-template-columns: 1fr; }
   .export-group {
@@ -746,7 +789,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
       </label>
     </div>
     <div class="filter-actions" aria-label="Ações dos filtros analíticos">
-      <button id="btnReset" class="action-icon-button" type="button" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa-solid fa-rotate-left"></i></button>
+      <button id="btnReset" class="action-icon-button" type="button" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa-solid fa-eraser"></i></button>
       <div class="export-group" id="exportMain">
         <button class="btn-export-toggle action-icon-button action-icon-button--export" type="button" onclick="toggleExportMenu('exportMain')" title="Exportar" aria-label="Exportar"><i class="fa-solid fa-download"></i></button>
         <div class="export-menu" id="exportMainMenu" style="display:none">
@@ -797,7 +840,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
     <p class="sub">Fixe o indicador, o tipo de evento e o período — depois selecione quais entidades administradoras comparar. O mapa entra em modo comparativo colorindo cada administração com uma cor distinta.</p>
 
     <div class="controls controls-block comp-controls">
-      <label>Indicador
+      <label class="comp-filter-field">Indicador
         <select id="compMetric">
           <option value="sinistros">Sinistros</option>
           <option value="obitos">Óbitos</option>
@@ -805,7 +848,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
           <option value="indice_letalidade">Letalidade (%)</option>
         </select>
       </label>
-      <label>Tipo de evento
+      <label class="comp-filter-field">Tipo de evento
         <select id="compEventType">
           <option value="ALL">Todos</option>
           <option value="COLISAO">Colisão</option>
@@ -814,7 +857,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
           <option value="OUTROS">Outros</option>
         </select>
       </label>
-      <label>Período
+      <label class="comp-filter-field">Período
         <select id="compYear">
           <option value="ALL">Todos os períodos</option>
         </select>
@@ -825,7 +868,7 @@ footer .footer-note { margin-top: 6px; color: #94a3b8; font-size: .85em; }
       </fieldset>
     </div>
     <div class="comp-actions">
-      <button id="btnCompReset" class="action-icon-button" type="button" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa-solid fa-rotate-left"></i></button>
+      <button id="btnCompReset" class="action-icon-button" type="button" title="Limpar filtros" aria-label="Limpar filtros"><i class="fa-solid fa-eraser"></i></button>
       <div class="export-group" id="exportComp">
         <button class="btn-export-toggle action-icon-button action-icon-button--export" type="button" onclick="toggleExportMenu('exportComp')" title="Exportar" aria-label="Exportar"><i class="fa-solid fa-download"></i></button>
         <div class="export-menu" id="exportCompMenu" style="display:none">
@@ -2208,6 +2251,45 @@ function ensureMapLegendControl() {
 }
 
 const TABLE_PAGE_SIZE = 15;
+const detailSort = { key: 'metric', direction: 'desc' };
+const comparisonSort = { key: 'metric', direction: 'desc' };
+
+function sortableHeader(label, key, sortState) {
+  const active = sortState.key === key;
+  const icon = active ? (sortState.direction === 'asc' ? 'fa-sort-up' : 'fa-sort-down') : 'fa-sort';
+  const ariaSort = active ? (sortState.direction === 'asc' ? 'ascending' : 'descending') : 'none';
+  return `<th aria-sort="${ariaSort}"><button type="button" class="table-sort-button${active ? ' is-active' : ''}" data-sort-key="${key}" title="Ordenar por ${label}"><i class="fa-solid ${icon}" aria-hidden="true"></i><span>${label}</span></button></th>`;
+}
+
+function compareTableValues(a, b, direction) {
+  const aBlank = a === null || a === undefined || a === '';
+  const bBlank = b === null || b === undefined || b === '';
+  if (aBlank || bBlank) return aBlank === bBlank ? 0 : (aBlank ? 1 : -1);
+  const an = Number(a), bn = Number(b);
+  const result = Number.isFinite(an) && Number.isFinite(bn)
+    ? an - bn
+    : String(a).localeCompare(String(b), 'pt-BR', { numeric: true, sensitivity: 'base' });
+  return direction === 'asc' ? result : -result;
+}
+
+function sortTableRows(rows, sortState, accessors) {
+  const accessor = accessors[sortState.key] || accessors.metric;
+  return [...rows].sort((a, b) => compareTableValues(accessor(a), accessor(b), sortState.direction));
+}
+
+function wireTableSorting(host, sortState, renderAgain) {
+  host.querySelectorAll('.table-sort-button').forEach((button) => {
+    button.addEventListener('click', () => {
+      const key = button.dataset.sortKey;
+      if (sortState.key === key) sortState.direction = sortState.direction === 'asc' ? 'desc' : 'asc';
+      else {
+        sortState.key = key;
+        sortState.direction = key === 'metric' || ['sinistros', 'obitos', 'graves', 'sinistros_por_km', 'indice_letalidade'].includes(key) ? 'desc' : 'asc';
+      }
+      renderAgain(1);
+    });
+  });
+}
 
 function tableFooterHtml(scope, total, page, pageSize = TABLE_PAGE_SIZE) {
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -2235,9 +2317,24 @@ function wireTablePagination(host, handler) {
 function updateDetailTable(rows, requestedPage = 1) {
   const host = document.getElementById('detailTable');
   if (!host) return;
-  const rankedAll = [...rows]
+  const topRows = [...rows]
     .sort((a, b) => metricValue(b, state.metric) - metricValue(a, state.metric))
     .slice(0, Number(state.topN || 8));
+  const detailAccessors = {
+    position: (item) => topRows.indexOf(item),
+    code: (item) => item.CD_MUN || '',
+    municipality: (item) => item.NM_MUN || '',
+    road: (item) => item.Rodovia || '',
+    segment: (item) => item.trecho_id || item.Subtrecho || '',
+    metric: (item) => metricValue(item, state.metric),
+    sinistros: (item) => Number(item.sinistros || 0),
+    obitos: (item) => Number(item.obitos || item.vitimas_fatais || 0),
+    graves: (item) => Number(item.graves || 0),
+    event: (item) => state.spatialLevel === 'municipio'
+      ? predominantEventLabel(lastBreakdownByMunicipality[String(item.CD_MUN || '')])
+      : predominantEventLabel(state.spatialLevel === 'trecho' ? lastBreakdownBySegment[item.trecho_id || item.Subtrecho] : lastBreakdownByRoad[item.Rodovia])
+  };
+  const rankedAll = sortTableRows(topRows, detailSort, detailAccessors);
 
   if (!rankedAll.length) {
     host.innerHTML = '<div class="detail-note">Sem resultados para o recorte atual.</div>';
@@ -2255,13 +2352,13 @@ function updateDetailTable(rows, requestedPage = 1) {
       const breakdown = lastBreakdownByMunicipality[key];
       const pred = predominantEventLabel(breakdown);
       const focusedClass = state.focusKey && key === state.focusKey ? ' class="focused"' : '';
-      return `<tr data-key="${key.replace(/"/g, '&quot;')}"${focusedClass}><td>${idx + 1}</td><td>${key || '-'}</td><td>${item.NM_MUN || '-'}</td><td>${value}</td><td>${fmt(item.sinistros || 0)}</td><td>${fmt(item.obitos || 0)}</td><td>${fmt(item.graves || 0)}</td><td>${pred}</td></tr>`;
+      return `<tr data-key="${key.replace(/"/g, '&quot;')}"${focusedClass}><td>${topRows.indexOf(item) + 1}</td><td>${key || '-'}</td><td>${item.NM_MUN || '-'}</td><td>${value}</td><td>${fmt(item.sinistros || 0)}</td><td>${fmt(item.obitos || 0)}</td><td>${fmt(item.graves || 0)}</td><td>${pred}</td></tr>`;
     }).join('');
 
     host.innerHTML = [
       `<div class="detail-note"><strong>Top ${state.topN} municípios no recorte atual</strong> · Tipo de evento filtrado: ${eventTypeNames[state.eventType] || 'Todos'}. Clique em uma linha para focar.</div>`,
       '<table>',
-      '<thead><tr><th>Posição</th><th>Código IBGE</th><th>Município</th><th>Indicador</th><th>Sinistros</th><th>Óbitos</th><th>Vítimas graves</th><th>Tipo predominante</th></tr></thead>',
+      `<thead><tr>${sortableHeader('Posição', 'position', detailSort)}${sortableHeader('Código IBGE', 'code', detailSort)}${sortableHeader('Município', 'municipality', detailSort)}${sortableHeader('Indicador', 'metric', detailSort)}${sortableHeader('Sinistros', 'sinistros', detailSort)}${sortableHeader('Óbitos', 'obitos', detailSort)}${sortableHeader('Vítimas graves', 'graves', detailSort)}${sortableHeader('Tipo predominante', 'event', detailSort)}</tr></thead>`,
       `<tbody>${rowsHtml}</tbody>`,
       '</table>',
       tableFooterHtml('detail', rankedAll.length, page)
@@ -2273,6 +2370,7 @@ function updateDetailTable(rows, requestedPage = 1) {
       });
     });
     wireTablePagination(host, (nextPage) => updateDetailTable(rows, nextPage));
+    wireTableSorting(host, detailSort, (nextPage) => updateDetailTable(rows, nextPage));
     return;
   }
 
@@ -2298,7 +2396,7 @@ function updateDetailTable(rows, requestedPage = 1) {
       : lastBreakdownByRoad[item.Rodovia];
     const pred = predominantEventLabel(breakdown);
     const focusedClass = state.focusKey && segKey === state.focusKey ? ' class="focused"' : '';
-    return `<tr data-key="${segKey.replace(/"/g, '&quot;')}"${focusedClass}><td>${idx + 1}</td><td>${road}</td><td>${segTxt}</td><td>${value}</td><td>${sin}</td><td>${obi}</td><td>${pred}</td></tr>`;
+    return `<tr data-key="${segKey.replace(/"/g, '&quot;')}"${focusedClass}><td>${topRows.indexOf(item) + 1}</td><td>${road}</td><td>${segTxt}</td><td>${value}</td><td>${sin}</td><td>${obi}</td><td>${pred}</td></tr>`;
   }).join('');
 
   const subtitle = state.spatialLevel === 'trecho'
@@ -2308,7 +2406,7 @@ function updateDetailTable(rows, requestedPage = 1) {
   host.innerHTML = [
     `<div class="detail-note"><strong>${subtitle}</strong> · Tipo de evento filtrado: ${eventTypeNames[state.eventType] || 'Todos'}. Clique em uma linha para focar.</div>`,
     '<table>',
-    '<thead><tr><th>Posição</th><th>Rodovia</th><th>Subtrecho</th><th>Indicador</th><th>Sinistros</th><th>Óbitos</th><th>Tipo predominante</th></tr></thead>',
+    `<thead><tr>${sortableHeader('Posição', 'position', detailSort)}${sortableHeader('Rodovia', 'road', detailSort)}${sortableHeader('Subtrecho', 'segment', detailSort)}${sortableHeader('Indicador', 'metric', detailSort)}${sortableHeader('Sinistros', 'sinistros', detailSort)}${sortableHeader('Óbitos', 'obitos', detailSort)}${sortableHeader('Tipo predominante', 'event', detailSort)}</tr></thead>`,
     `<tbody>${rowsHtml}</tbody>`,
     '</table>',
     tableFooterHtml('detail', rankedAll.length, page)
@@ -2321,6 +2419,7 @@ function updateDetailTable(rows, requestedPage = 1) {
     });
   });
   wireTablePagination(host, (nextPage) => updateDetailTable(rows, nextPage));
+  wireTableSorting(host, detailSort, (nextPage) => updateDetailTable(rows, nextPage));
 }
 
 function setStatus(text, isError) {
@@ -2750,11 +2849,22 @@ function renderCompTime(rows) {
 
 function renderCompTrechos(requestedPage = 1) {
   const m = compState.metric;
+  if (comparisonSort.key === 'metric') comparisonSort.key = m;
   const admsAtivas = compState.adms.length
     ? compState.adms
     : [...new Set(compAdmTrechos.map((r) => String(r.administracao || '').toUpperCase()).filter(Boolean))];
   let rows = compAdmTrechos.filter((r) => admsAtivas.includes(String(r.administracao || '').toUpperCase()));
-  rows = [...rows].sort((a, b) => Number(b[m] || 0) - Number(a[m] || 0));
+  const compAccessors = {
+    administracao: (r) => r.administracao || '',
+    Rodovia: (r) => r.Rodovia || '',
+    trecho_id: (r) => r.trecho_id || '',
+    sinistros: (r) => Number(r.sinistros || 0),
+    obitos: (r) => Number(r.obitos || 0),
+    sinistros_por_km: (r) => Number(r.sinistros_por_km || 0),
+    indice_letalidade: (r) => Number(r.indice_letalidade || 0),
+    metric: (r) => Number(r[m] || 0)
+  };
+  rows = sortTableRows(rows, comparisonSort, compAccessors);
   const host = document.getElementById('compTrechoTable');
   if (!rows.length) { host.innerHTML = '<div class="detail-note">Sem resultados para o recorte comparativo.</div>'; return; }
   const totalPages = Math.max(1, Math.ceil(rows.length / TABLE_PAGE_SIZE));
@@ -2763,7 +2873,7 @@ function renderCompTrechos(requestedPage = 1) {
   const cols = ['administracao', 'Rodovia', 'trecho_id', 'sinistros', 'obitos', 'sinistros_por_km', 'indice_letalidade'];
   const heads = ['Administração', 'Rodovia', 'Trecho', 'Sinistros', 'Óbitos', 'Sin./km', 'Letalidade (%)'];
   const digs  = [null, null, null, 0, 0, 2, 2];
-  const html = `<table><thead><tr>${heads.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>
+  const html = `<table><thead><tr>${heads.map((h, i) => sortableHeader(h, cols[i], comparisonSort)).join('')}</tr></thead><tbody>
     ${visibleRows.map((r) => `<tr style="border-left:4px solid ${admColor(r.administracao)}">${cols.map((c, i) => {
       const v = r[c];
       return `<td>${digs[i] !== null ? fmt(Number(v || 0), digs[i]) : (v || '-')}</td>`;
@@ -2773,6 +2883,7 @@ function renderCompTrechos(requestedPage = 1) {
   ${tableFooterHtml('comparison', rows.length, page)}`;
   host.innerHTML = html;
   wireTablePagination(host, (nextPage) => renderCompTrechos(nextPage));
+  wireTableSorting(host, comparisonSort, (nextPage) => renderCompTrechos(nextPage));
 }
 
 function applyCompMapMode(active) {
